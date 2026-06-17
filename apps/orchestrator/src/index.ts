@@ -27,7 +27,7 @@ async function main() {
 
   const db = createConnection(config.DATABASE_URL);
 
-  const openAI = createOpenAIService(config.OPENAI_API_KEY);
+  const openAI = createOpenAIService(config.OPENAI_API_KEY, config.OPENAI_BASE_URL);
 
   const sidecar = createSidecarClient(config.SIDECAR_URL);
 

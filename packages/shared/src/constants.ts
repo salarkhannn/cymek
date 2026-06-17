@@ -1,7 +1,7 @@
-export const EMBEDDING_DIMENSIONS = 1536;
-export const EMBEDDING_MODEL = "text-embedding-3-small";
-export const CHAT_MODEL = "gpt-4o-mini";
-export const EVAL_MODEL = "gpt-4o-mini";
+export const EMBEDDING_DIMENSIONS = 768;
+export const EMBEDDING_MODEL = "nomic-embed-text";
+export const CHAT_MODEL = "llama3.2";
+export const EVAL_MODEL = "llama3.2";
 export const DEFAULT_CHUNK_SIZE = 512;
 export const DEFAULT_CHUNK_OVERLAP = 50;
 export const RETRY_CHUNK_SIZE = 384;

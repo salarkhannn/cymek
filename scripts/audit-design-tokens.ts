@@ -20,6 +20,7 @@ const DESIGN_TOKENS = {
 }
 
 const SKIP_DIRS = new Set(["node_modules", "dist", ".next", "__tests__", ".storybook"])
+const SKIP_PACKAGES = new Set(["embed"]) // standalone bundles with own styles
 
 const VIOLATIONS: string[] = []
 const CHECKED_FILES: string[] = []
@@ -74,7 +75,7 @@ function walkDir(dir: string): void {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry)
     if (statSync(full).isDirectory()) {
-      if (!entry.startsWith(".") && !SKIP_DIRS.has(entry)) {
+      if (!entry.startsWith(".") && !SKIP_DIRS.has(entry) && !SKIP_PACKAGES.has(entry)) {
         walkDir(full)
       }
     } else if (isSourceFile(full)) {

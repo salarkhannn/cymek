@@ -1,10 +1,5 @@
-export function injectStyles(primaryColor: string): void {
-  const id = "cymek-embed-styles";
-  if (document.getElementById(id)) return;
-
-  const style = document.createElement("style");
-  style.id = id;
-  style.textContent = `
+function css(primaryColor: string): string {
+  return `
     #cymek-bubble {
       all: initial;
       position: fixed;
@@ -189,5 +184,18 @@ export function injectStyles(primaryColor: string): void {
       }
     }
   `;
+}
+
+export function injectStyles(primaryColor: string): void {
+  const id = "cymek-embed-styles";
+  const existing = document.getElementById(id) as HTMLStyleElement | null;
+  if (existing) {
+    existing.textContent = css(primaryColor);
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.id = id;
+  style.textContent = css(primaryColor);
   document.head.appendChild(style);
 }

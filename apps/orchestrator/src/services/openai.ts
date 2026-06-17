@@ -7,8 +7,8 @@ import {
   RANDOM_SAMPLE_COUNT,
 } from "@cymek/shared";
 
-export function createOpenAIService(apiKey: string) {
-  const client = new OpenAI({ apiKey });
+export function createOpenAIService(apiKey: string, baseURL?: string) {
+  const client = new OpenAI({ apiKey, baseURL });
 
   async function createEmbedding(input: string): Promise<number[]> {
     const response = await client.embeddings.create({
@@ -91,7 +91,6 @@ Return a JSON object with a "pairs" field that is an array of objects with "ques
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 2000,
-      response_format: { type: "json_object" },
     });
 
     const content = response.choices[0].message.content ?? '{"pairs":[]}';
@@ -132,7 +131,6 @@ Return JSON: { "faithfulness": number, "relevance": number }`;
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
       max_tokens: 200,
-      response_format: { type: "json_object" },
     });
 
     const content = response.choices[0].message.content ?? '{"faithfulness":0,"relevance":0}';

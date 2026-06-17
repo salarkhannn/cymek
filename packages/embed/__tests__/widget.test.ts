@@ -18,6 +18,9 @@ describe("CymekWidget", () => {
 
   beforeEach(() => {
     document.body.innerHTML = "";
+    // Ensure head is clean between tests
+    const old = document.getElementById("cymek-embed-styles");
+    if (old) old.remove();
     widget = new CymekWidget({
       tenantId: "test-tenant",
       title: "Test Chat",
@@ -79,11 +82,23 @@ describe("CymekWidget", () => {
 
   it("does not duplicate styles on second init", () => {
     widget.init();
+    // Destroy first widget to avoid duplicate DOM id conflicts in jsdom
+    widget.destroy();
     const widget2 = new CymekWidget({ tenantId: "t2" });
     widget2.init();
     const styles = document.querySelectorAll("#cymek-embed-styles");
     expect(styles.length).toBe(1);
     widget2.destroy();
+  });
+
+  it("updates style color when second widget has different primaryColor", () => {
+    widget.init();
+    widget.destroy();
+    const w2 = new CymekWidget({ tenantId: "t2", primaryColor: "#ff0000" });
+    w2.init();
+    const style = document.getElementById("cymek-embed-styles");
+    expect(style?.textContent).toContain("#ff0000");
+    w2.destroy();
   });
 
   it("disables send button when input is empty", () => {
@@ -130,22 +145,12 @@ describe("CymekWidget", () => {
     expect(bubble?.style.display).toBe("flex");
     expect(drawer?.classList.contains("open")).toBe(false);
   });
-});
 
-describe("CymekWidget — config", () => {
   it("uses default title if not provided", () => {
     const w = new CymekWidget({ tenantId: "t" });
     w.init();
     const title = document.querySelector("#cymek-drawer-title");
     expect(title?.textContent).toBe("Cymek Chat");
-    w.destroy();
-  });
-
-  it("uses custom primary color", () => {
-    const w = new CymekWidget({ tenantId: "t", primaryColor: "#ff0000" });
-    w.init();
-    const style = document.getElementById("cymek-embed-styles");
-    expect(style?.textContent).toContain("#ff0000");
     w.destroy();
   });
 
