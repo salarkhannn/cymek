@@ -5,8 +5,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().default("postgres://localhost:5432/cymek"),
   MASTER_ENCRYPTION_KEY: z.string().default("dev-master-key-32-bytes-long!!!"),
   OPENAI_BASE_URL: z.string().default("http://localhost:11434/v1"),
-  OPENAI_API_KEY: z.string().default("ollama"),
-  SIDECAR_URL: z.string().default("http://localhost:8000"),
+  SIDECAR_URL: z.string().default("http://localhost:8001"),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 });

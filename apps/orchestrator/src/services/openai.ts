@@ -34,15 +34,29 @@ export function createOpenAIService(apiKey: string, baseURL?: string) {
     return results;
   }
 
-  async function generateSystemPrompt(chunks: string[]): Promise<string> {
+  async function generateSystemPrompt(
+    chunks: string[],
+    useCase: string,
+    targetUser: string,
+  ): Promise<string> {
     const samples = getRandomSamples(chunks, RANDOM_SAMPLE_COUNT);
 
-    const metaPrompt = `You are a documentation assistant. Based on the following document chunks, create a system prompt that will guide an AI to answer questions about this content accurately.
+    const metaPrompt = `You are a system prompt generator. Your job is to write a system prompt for an AI assistant that will be deployed for a business use case.
 
-Document samples:
+Business use case: ${useCase}
+Target users: ${targetUser}
+
+The following are sample chunks from the business's knowledge base that the AI will use to answer questions:
+
 ${samples.map((c, i) => `--- Chunk ${i + 1} ---\n${c}`).join("\n\n")}
 
-Generate a concise system prompt (2-3 paragraphs) that captures the key topics, terminology, and style of these documents.`;
+Write a system prompt (2-3 paragraphs) that:
+1. Names and scopes the assistant for this specific use case
+2. Sets an appropriate tone for the target user type
+3. Includes two or three grounding rules derived from the knowledge base samples
+4. Stipulates that the AI must only answer from the provided context and never make up information
+
+The output should read like a human wrote it for this specific business case — not a template or fill-in-the-blank. Do not include any meta-instructions about being a system prompt generator. Write as if you are the final system prompt.`;
 
     const response = await client.chat.completions.create({
       model: CHAT_MODEL,
@@ -54,15 +68,29 @@ Generate a concise system prompt (2-3 paragraphs) that captures the key topics, 
     return response.choices[0].message.content ?? "";
   }
 
-  async function regenerateSystemPrompt(chunks: string[]): Promise<string> {
+  async function regenerateSystemPrompt(
+    chunks: string[],
+    useCase: string,
+    targetUser: string,
+  ): Promise<string> {
     const samples = getRandomSamples(chunks, RANDOM_SAMPLE_COUNT);
 
-    const metaPrompt = `You are a documentation assistant. Based on the following document chunks, create a system prompt that will guide an AI to answer questions about this content.
+    const metaPrompt = `You are a system prompt generator. Your job is to write a system prompt for an AI assistant that will be deployed for a business use case.
 
-Document samples:
+Business use case: ${useCase}
+Target users: ${targetUser}
+
+The following are sample chunks from the business's knowledge base that the AI will use to answer questions:
+
 ${samples.map((c, i) => `--- Chunk ${i + 1} ---\n${c}`).join("\n\n")}
 
-Generate a concise system prompt (2-3 paragraphs) that captures the key topics, terminology, and style of these documents. Be creative and thorough.`;
+Write a system prompt (2-3 paragraphs) that:
+1. Names and scopes the assistant for this specific use case
+2. Sets an appropriate tone for the target user type
+3. Includes two or three grounding rules derived from the knowledge base samples
+4. Stipulates that the AI must only answer from the provided context and never make up information
+
+The output should read like a human wrote it for this specific business case. Be creative and thorough. Do not include any meta-instructions about being a system prompt generator.`;
 
     const response = await client.chat.completions.create({
       model: CHAT_MODEL,

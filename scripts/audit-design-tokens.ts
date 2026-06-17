@@ -15,6 +15,14 @@ const DESIGN_TOKENS = {
     "#fafafa", "#1c1c1e",
     "#22C55E", "#F59E0B", "#EF4444",
   ],
+  rgbColors: [
+    { rgb: "196,181,253", name: "twilight.300 (#c4b5fd)" },
+    { rgb: "167,139,250", name: "twilight.500 (#a78bfa)" },
+    { rgb: "124,92,252", name: "twilight.700 (#7c5cfc)" },
+    { rgb: "99,102,241", name: "twilight.800 (#6366f1)" },
+    { rgb: "79,70,229", name: "twilight.900 (#4f46e5)" },
+    { rgb: "79,140,247", name: "blue-saturated (#4f8cf7)" },
+  ],
   radii: ["4px", "8px", "12px", "16px"],
   families: ["PP Editorial Old", "Inter", "JetBrains Mono"],
 }
@@ -55,14 +63,38 @@ function checkHardcodedColors(content: string, filePath: string): void {
       VIOLATIONS.push(`${filePath}:${lineNumber(content, match.index)} — hardcoded color ${match[0]} not in design tokens`)
     }
   }
+
+  // Check for rgba()/rgb() values that aren't theme() calls
+  const rgbMatch = /rgba?\((\d{1,3},\d{1,3},\d{1,3}(?:,\d+(?:\.\d+)?)?)\)/g
+  while ((match = rgbMatch.exec(content)) !== null) {
+    const rgbVal = match[1].split(",").slice(0, 3).join(",")
+    const isInTokens = DESIGN_TOKENS.rgbColors.some((t) => t.rgb === rgbVal)
+    if (!isInTokens) {
+      VIOLATIONS.push(`${filePath}:${lineNumber(content, match.index)} — hardcoded rgb(${match[1]}) not in design tokens (or use theme() function)`)
+    }
+  }
 }
 
 function checkTwilightStripe(content: string, filePath: string): void {
   if (filePath.endsWith("layout.tsx")) {
-    const hasImport = content.includes("Footer") &&
+    const hasFooter = content.includes("Footer") &&
       content.includes("components/layout/Footer")
-    if (!hasImport) {
+    if (!hasFooter) {
       VIOLATIONS.push(`${filePath} — twilight stripe not found (layout should include Footer)`)
+    }
+  }
+}
+
+function checkFontDisplay(content: string, filePath: string): void {
+  if (filePath.includes("/app/") && filePath.endsWith("page.tsx") && !filePath.endsWith("layout.tsx")) {
+    if (content.includes("font-display") || content.includes("text-hero-display") || content.includes("text-h1-display")) {
+      return // has display font
+    }
+  }
+  if (filePath.endsWith("layout.tsx")) {
+    const hasDisplayFont = content.includes("Playfair") || content.includes("--font-display")
+    if (!hasDisplayFont) {
+      VIOLATIONS.push(`${filePath} — layout should load and set --font-display`)
     }
   }
 }
@@ -83,6 +115,7 @@ function walkDir(dir: string): void {
       const content = readFileSync(full, "utf-8")
       checkHardcodedColors(content, relative(ROOT, full))
       checkTwilightStripe(content, relative(ROOT, full))
+      checkFontDisplay(content, relative(ROOT, full))
     }
   }
 }

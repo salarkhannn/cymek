@@ -5,7 +5,6 @@ import { createConnection } from "@cymek/db";
 import { loadConfig } from "./config.js";
 import type { PipelineConfig } from "@cymek/shared";
 import { createEncryptionService } from "./services/encryption.js";
-import { createOpenAIService } from "./services/openai.js";
 import { createSidecarClient } from "./services/sidecar-client.js";
 import { createPipelineService } from "./services/pipeline.js";
 import { createChatService } from "./services/chat.js";
@@ -23,12 +22,9 @@ async function main() {
         : undefined,
   });
 
-  createEncryptionService(config.MASTER_ENCRYPTION_KEY);
+  const encryption = createEncryptionService(config.MASTER_ENCRYPTION_KEY);
 
   const db = createConnection(config.DATABASE_URL);
-
-  const openAI = createOpenAIService(config.OPENAI_API_KEY, config.OPENAI_BASE_URL);
-
   const sidecar = createSidecarClient(config.SIDECAR_URL);
 
   const pgBoss = new PgBoss(config.DATABASE_URL);
@@ -40,7 +36,7 @@ async function main() {
   await pgBoss.start();
   logger.info("pg-boss started");
 
-  const pipeline = createPipelineService(db, openAI, sidecar, pgBoss, logger);
+  const pipeline = createPipelineService(db, sidecar, pgBoss, logger, encryption, config.OPENAI_BASE_URL);
 
   await pgBoss.work<{ jobId: string; tenantId: string; config: PipelineConfig }>(
     "pipeline-process",
@@ -50,20 +46,21 @@ async function main() {
         try {
           await pipeline.processPipeline(job);
           await pgBoss.complete("pipeline-process", job.id);
-      } catch (err) {
-        logger.error({ err, jobId: job.id }, "Pipeline worker failed");
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        await pgBoss.fail("pipeline-process", job.id, { error: errorMsg });
+        } catch (err) {
+          logger.error({ err, jobId: job.id }, "Pipeline worker failed");
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          await pgBoss.fail("pipeline-process", job.id, { error: errorMsg });
+        }
       }
-    }
-  });
+    },
+  );
 
-  const chatService = createChatService(db, openAI, logger);
+  const chatService = createChatService(db, logger, encryption, config.OPENAI_BASE_URL);
 
   const app = express();
   app.use(express.json());
 
-  app.use(pipelineRoutes(pipeline, logger));
+  app.use(pipelineRoutes(db, pipeline, encryption, logger));
   app.use(chatRoutes(chatService, logger));
 
   app.get("/health", (_req, res) => {

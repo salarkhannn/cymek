@@ -2,15 +2,17 @@ import * as crypto from "node:crypto";
 import { sql, eq, and } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "@cymek/db/schema";
-import type { OpenAIService } from "./openai.js";
+import { createOpenAIService } from "./openai.js";
+import type { EncryptionService } from "./encryption.js";
 import type pino from "pino";
 
 type Db = PostgresJsDatabase<typeof schema>;
 
 export function createChatService(
   db: Db,
-  openAI: OpenAIService,
   logger: pino.Logger,
+  encryption: EncryptionService,
+  openAIBaseUrl: string,
 ) {
   async function chat(
     tenantId: string,
@@ -22,13 +24,24 @@ export function createChatService(
     const sid = sessionId ?? crypto.randomUUID();
 
     const [tenant] = await db
-      .select({ id: schema.tenants.id })
+      .select({
+        id: schema.tenants.id,
+        apiKeyEncrypted: schema.tenants.apiKeyEncrypted,
+        apiKeyNonce: schema.tenants.apiKeyNonce,
+      })
       .from(schema.tenants)
       .where(eq(schema.tenants.id, tenantId));
 
     if (!tenant) {
       throw new Error(`Tenant not found: ${tenantId}`);
     }
+
+    if (!tenant.apiKeyEncrypted || !tenant.apiKeyNonce) {
+      throw new Error(`No API key configured for tenant ${tenantId}`);
+    }
+
+    const apiKey = encryption.decrypt(tenant.apiKeyEncrypted, tenant.apiKeyNonce);
+    const openAI = createOpenAIService(apiKey, openAIBaseUrl);
 
     await db.insert(schema.chatLogs).values({
       tenantId,

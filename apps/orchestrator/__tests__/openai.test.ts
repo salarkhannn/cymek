@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import { EMBEDDING_MODEL } from "@cymek/shared"
 
 vi.mock("openai", () => {
   const MockOpenAI = vi.fn(() => ({
@@ -36,7 +37,7 @@ describe("OpenAI service", () => {
 
     expect(result).toEqual([0.1, 0.2, 0.3])
     expect(mockCreate).toHaveBeenCalledWith({
-      model: "text-embedding-3-small",
+      model: EMBEDDING_MODEL,
       input: "test text",
     })
   })
@@ -85,7 +86,11 @@ describe("OpenAI service", () => {
 
     const { createOpenAIService } = await import("../src/services/openai.js")
     const openAI = createOpenAIService("sk-test")
-    const result = await openAI.generateSystemPrompt(["chunk1 content", "chunk2 content"])
+    const result = await openAI.generateSystemPrompt(
+      ["chunk1 content", "chunk2 content"],
+      "Customer Support",
+      "End users",
+    )
 
     expect(result).toBe("You are a helpful assistant for Cymek docs.")
   })
@@ -103,7 +108,11 @@ describe("OpenAI service", () => {
 
     const { createOpenAIService } = await import("../src/services/openai.js")
     const openAI = createOpenAIService("sk-test")
-    const result = await openAI.regenerateSystemPrompt(["chunk1"])
+    const result = await openAI.regenerateSystemPrompt(
+      ["chunk1"],
+      "Customer Support",
+      "End users",
+    )
 
     expect(result).toBe("Regenerated assistant prompt.")
   })

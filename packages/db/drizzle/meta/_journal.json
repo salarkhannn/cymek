@@ -15,6 +15,13 @@
       "when": 1781718064007,
       "tag": "0001_gray_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781720463927,
+      "tag": "0002_lowly_jubilee",
+      "breakpoints": true
     }
   ]
 }

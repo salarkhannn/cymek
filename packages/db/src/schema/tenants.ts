@@ -7,6 +7,8 @@ export const tenants = pgTable("tenants", {
   slug: text("slug").notNull().unique(),
   apiKeyEncrypted: text("api_key_encrypted"),
   apiKeyNonce: text("api_key_nonce"),
+  useCase: text("use_case"),
+  targetUser: text("target_user"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

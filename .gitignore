@@ -9,7 +9,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
-drizzle/meta/_journal.json
+# drizzle/meta/_journal.json is intentionally tracked — it is the migration journal
 *.db
 coverage/
 .turbo/

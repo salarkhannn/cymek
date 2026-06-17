@@ -18,20 +18,19 @@ import {
 } from "../src/constants.js"
 
 describe("constants", () => {
-  it("EMBEDDING_DIMENSIONS is 1536", () => {
-    expect(EMBEDDING_DIMENSIONS).toBe(1536)
+  it("EMBEDDING_DIMENSIONS is 768", () => {
+    expect(EMBEDDING_DIMENSIONS).toBe(768)
   })
 
   it("EMBEDDING_MODEL is nomic-embed-text", () => {
-
     expect(EMBEDDING_MODEL).toBe("nomic-embed-text")
+  })
 
   it("CHAT_MODEL is llama3.2", () => {
-
     expect(CHAT_MODEL).toBe("llama3.2")
+  })
 
   it("EVAL_MODEL is llama3.2", () => {
-
     expect(EVAL_MODEL).toBe("llama3.2")
   })
 
@@ -62,9 +61,9 @@ describe("constants", () => {
   it("EMBEDDING_BATCH_SIZE is 100", () => {
     expect(EMBEDDING_BATCH_SIZE).toBe(100)
   })
+  it("SIDECAR_URL is http://localhost:8001", () => {
 
-  it("SIDECAR_URL is http://localhost:8000", () => {
-    expect(SIDECAR_URL).toBe("http://localhost:8000")
+    expect(SIDECAR_URL).toBe("http://localhost:8001")
   })
 
   it("PIPELINE_STAGES contains 6 stages in order", () => {

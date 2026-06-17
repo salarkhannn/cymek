@@ -23,6 +23,8 @@ export interface Tenant {
   id: string;
   name: string;
   slug: string;
+  useCase: string | null;
+  targetUser: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -103,4 +105,6 @@ export interface PipelineConfig {
   urls?: string[];
   chunkSize?: number;
   chunkOverlap?: number;
+  useCase?: string;
+  targetUser?: string;
 }

@@ -8,13 +8,7 @@ import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
 import { CodeBlock } from "../../components/ui/CodeBlock";
 import { ScoreBar } from "../../components/ui/ScoreBar";
-
-interface TenantData {
-  apiKey: string;
-  useCase: string;
-  targetUser: string;
-  tenantId: string;
-}
+import { getTenant, type TenantInfo } from "../../lib/api";
 
 interface Job {
   id: string;
@@ -27,29 +21,38 @@ interface Job {
 
 function DashboardPage() {
   const router = useRouter();
-  const [tenantData, setTenantData] = useState<TenantData | null>(null);
+  const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("cymek_tenant");
-    if (stored) {
-      try {
-        setTenantData(JSON.parse(stored));
-      } catch {
-        // ignore
-      }
+    if (!stored) {
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    const tenantId = stored;
+
+    getTenant(tenantId)
+      .then((info) => {
+        setTenantInfo(info);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load tenant");
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
-    if (!tenantData) return;
+    if (!tenantInfo) return;
 
-    const td = tenantData;
+    const tid = tenantInfo.id;
     async function fetchJobs() {
       try {
-        const res = await fetch(`/api/pipeline/jobs?tenantId=${td.tenantId}`);
+        const res = await fetch(`/api/pipeline/jobs?tenantId=${tid}`);
         if (res.ok) {
           const data = await res.json();
           setJobs(Array.isArray(data) ? data : []);
@@ -62,7 +65,7 @@ function DashboardPage() {
     fetchJobs();
     const interval = setInterval(fetchJobs, 5000);
     return () => clearInterval(interval);
-  }, [tenantData]);
+  }, [tenantInfo]);
 
   const latestJob = jobs.length > 0
     ? jobs.reduce((latest, job) =>
@@ -70,19 +73,11 @@ function DashboardPage() {
       )
     : null;
 
-  const endpointUrl = tenantData
-    ? `${window.location.origin}/api/chat/${tenantData.tenantId}`
+  const endpointUrl = tenantInfo
+    ? `${window.location.origin}/api/chat/${tenantInfo.id}`
     : "";
 
-  const embedSnippet = tenantData
-    ? `<script src="https://cdn.cymek.ai/embed.js"></script>
-<script>
-  Cymek.init({
-    tenantId: "${tenantData.tenantId}",
-    apiKey: "${tenantData.apiKey.slice(0, 8)}..."
-  });
-</script>`
-    : "";
+  const embedSnippet = tenantInfo?.embedSnippet ?? "";
 
   if (loading) {
     return (
@@ -92,18 +87,22 @@ function DashboardPage() {
     );
   }
 
-  if (!tenantData) {
+  if (!tenantInfo) {
     return (
       <div className="mx-auto max-w-2xl px-6 py-section text-center">
-        <Badge variant="cream" className="mb-3">No Data</Badge>
+        {error && (
+          <Badge variant="primary" className="mb-3">Error</Badge>
+        )}
         <h1 className="text-h1-display font-display text-ink mb-4">
-          No pipeline yet
+          {error ? "Could not load dashboard" : "No pipeline yet"}
         </h1>
         <p className="text-body-md text-steel mb-6">
-          Create your first pipeline to see your dashboard.
+          {error
+            ? error
+            : "Create your first pipeline to see your dashboard."}
         </p>
         <Button variant="primary" onClick={() => router.push("/onboard")}>
-          Create Pipeline
+          {error ? "Try Again" : "Create Pipeline"}
         </Button>
       </div>
     );
@@ -116,7 +115,7 @@ function DashboardPage() {
         <h1 className="text-h1-display font-display text-ink mb-2">
           Your Pipeline
         </h1>
-        <p className="text-body-sm text-steel">{tenantData.useCase}</p>
+        <p className="text-body-sm text-steel">{tenantInfo.useCase}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -132,7 +131,7 @@ function DashboardPage() {
         <Card variant="cream">
           <h3 className="text-h5 text-ink mb-3">Tenant ID</h3>
           <TextInput
-            value={tenantData.tenantId}
+            value={tenantInfo.id}
             readOnly
             onClick={(e) => (e.target as HTMLInputElement).select()}
           />

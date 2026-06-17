@@ -9,6 +9,35 @@ const mockLogger = {
   debug: vi.fn(),
 }
 
+type QueryResult = Record<string, unknown>[]
+
+function chainWithResults(results: QueryResult[]) {
+  let idx = 0
+  function resolveNext() {
+    const r = idx < results.length ? results[idx] : []
+    idx++
+    return r
+  }
+
+  const qb: Record<string, unknown> = {
+    then: vi.fn((cb: (v: QueryResult) => unknown) =>
+      Promise.resolve(resolveNext()).then(cb),
+    ),
+    catch: vi.fn(),
+    finally: vi.fn(),
+  }
+
+  const METHODS = [
+    "select", "from", "where", "innerJoin", "orderBy", "limit",
+    "insert", "values", "update", "set", "delete",
+  ] as const
+  for (const m of METHODS) {
+    qb[m] = vi.fn(() => qb)
+  }
+
+  return qb as never
+}
+
 function createMockPipeline() {
   return {
     createJob: vi.fn().mockResolvedValue("job-123"),
@@ -16,14 +45,7 @@ function createMockPipeline() {
       id: "job-123",
       tenantId: "tenant-1",
       status: "queued",
-      stage: null,
       config: {},
-      retryCount: 0,
-      warning: false,
-      error: null,
-      extractedCount: null,
-      chunkCount: null,
-      evalScore: null,
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
     }),
@@ -43,51 +65,86 @@ function createMockChatService() {
   }
 }
 
+function createMockEncryption() {
+  return {
+    decrypt: vi.fn().mockReturnValue("sk-decrypted-key"),
+    encrypt: vi.fn().mockReturnValue({ encrypted: "encrypted-hex:authtag", nonce: "iv-hex" }),
+    generateNonce: vi.fn().mockReturnValue(new Uint8Array(12)),
+  }
+}
+
 describe("pipeline routes", () => {
   let app: express.Express
   let mockPipeline: ReturnType<typeof createMockPipeline>
+  let mockEncryption: ReturnType<typeof createMockEncryption>
 
   beforeEach(async () => {
     vi.clearAllMocks()
     app = express()
     app.use(express.json())
     mockPipeline = createMockPipeline()
-
-    const { pipelineRoutes } = await import("../src/routes/pipeline.js")
-    app.use(pipelineRoutes(mockPipeline as never, mockLogger as never))
+    mockEncryption = createMockEncryption()
   })
 
-  it("POST /pipeline creates a job", async () => {
+  it("POST /pipeline creates a new tenant and job", async () => {
+    const mockDb = chainWithResults([
+      [], // check if tenant exists → no
+      [], // insert (not captured but consumes slot)
+      [{ id: "tenant-1" }], // select after insert → created tenant
+    ])
+    const { pipelineRoutes } = await import("../src/routes/pipeline.js")
+    app.use(pipelineRoutes(mockDb, mockPipeline as never, mockEncryption, mockLogger as never))
+
     const res = await request(app)
       .post("/pipeline")
-      .send({ tenantId: "tenant-1", files: ["/tmp/doc.pdf"] })
+      .send({ apiKey: "sk-test", useCase: "My Use Case", files: ["/tmp/doc.pdf"] })
       .expect(201)
 
-    expect(res.body).toEqual({ jobId: "job-123" })
-    expect(mockPipeline.createJob).toHaveBeenCalledWith("tenant-1", {
-      files: ["/tmp/doc.pdf"],
-    })
+    expect(res.body.jobId).toBe("job-123")
+    expect(res.body.tenantId).toBe("tenant-1")
+    expect(mockPipeline.createJob).toHaveBeenCalled()
   })
 
-  it("POST /pipeline returns 400 when tenantId is missing", async () => {
+  it("POST /pipeline returns 400 when apiKey is missing", async () => {
+    const { pipelineRoutes } = await import("../src/routes/pipeline.js")
+    app.use(pipelineRoutes(chainWithResults([]), mockPipeline as never, mockEncryption, mockLogger as never))
+
     const res = await request(app)
       .post("/pipeline")
-      .send({ files: ["/tmp/doc.pdf"] })
+      .send({ useCase: "My Use Case", files: ["/tmp/doc.pdf"] })
       .expect(400)
 
-    expect(res.body).toEqual({ error: "tenantId is required" })
+    expect(res.body).toEqual({ error: "apiKey is required" })
+  })
+
+  it("POST /pipeline returns 400 when useCase is missing", async () => {
+    const { pipelineRoutes } = await import("../src/routes/pipeline.js")
+    app.use(pipelineRoutes(chainWithResults([]), mockPipeline as never, mockEncryption, mockLogger as never))
+
+    const res = await request(app)
+      .post("/pipeline")
+      .send({ apiKey: "sk-test", files: ["/tmp/doc.pdf"] })
+      .expect(400)
+
+    expect(res.body).toEqual({ error: "useCase is required" })
   })
 
   it("POST /pipeline returns 400 when no files or urls", async () => {
+    const { pipelineRoutes } = await import("../src/routes/pipeline.js")
+    app.use(pipelineRoutes(chainWithResults([]), mockPipeline as never, mockEncryption, mockLogger as never))
+
     const res = await request(app)
       .post("/pipeline")
-      .send({ tenantId: "tenant-1" })
+      .send({ apiKey: "sk-test", useCase: "My Use Case" })
       .expect(400)
 
     expect(res.body).toEqual({ error: "At least one of files or urls is required" })
   })
 
   it("GET /pipeline/:jobId returns job details", async () => {
+    const { pipelineRoutes } = await import("../src/routes/pipeline.js")
+    app.use(pipelineRoutes(chainWithResults([]), mockPipeline as never, mockEncryption, mockLogger as never))
+
     const res = await request(app)
       .get("/pipeline/job-123")
       .expect(200)
@@ -98,6 +155,8 @@ describe("pipeline routes", () => {
 
   it("GET /pipeline/:jobId returns 404 for unknown job", async () => {
     mockPipeline.getJobId.mockResolvedValue(null)
+    const { pipelineRoutes } = await import("../src/routes/pipeline.js")
+    app.use(pipelineRoutes(chainWithResults([]), mockPipeline as never, mockEncryption, mockLogger as never))
 
     const res = await request(app)
       .get("/pipeline/unknown")

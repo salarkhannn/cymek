@@ -28,20 +28,56 @@ export interface PipelineConfig {
   chunkOverlap?: number;
 }
 
+export interface TenantInfo {
+  id: string;
+  name: string;
+  slug: string;
+  useCase: string | null;
+  targetUser: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deployed: boolean;
+  deployEndpoint: string | null;
+  embedSnippet: string | null;
+}
+
+export interface PipelineResult {
+  tenantId: string;
+  jobId: string;
+}
+
 export async function createPipeline(
-  tenantId: string,
+  apiKey: string,
+  useCase: string,
+  targetUser: string,
   config: PipelineConfig,
-): Promise<{ jobId: string }> {
+): Promise<PipelineResult> {
   const res = await fetch("/api/pipeline", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tenantId, ...config }),
+    body: JSON.stringify({ apiKey, useCase, targetUser, ...config }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Request failed" }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
   return res.json();
+}
+
+export async function getTenant(tenantId: string): Promise<TenantInfo> {
+  const res = await fetch(`/api/tenant/${tenantId}`);
+  if (!res.ok) {
+    if (res.status === 404) throw new Error("Tenant not found");
+    throw new Error(`HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getJobs(tenantId: string): Promise<Record<string, unknown>[]> {
+  const res = await fetch(`/api/pipeline/jobs?tenantId=${encodeURIComponent(tenantId)}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
 }
 
 export async function getPipeline(

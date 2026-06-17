@@ -11,7 +11,7 @@ export const EVAL_QA_PAIRS = 20;
 export const EVAL_MIN_SCORE = 0.75;
 export const EMBEDDING_BATCH_SIZE = 100;
 export const RANDOM_SAMPLE_COUNT = 5;
-export const SIDECAR_URL = "http://localhost:8000";
+export const SIDECAR_URL = "http://localhost:8001";
 
 export const PIPELINE_STAGES = [
   "ingesting",

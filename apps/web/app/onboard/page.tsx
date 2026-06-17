@@ -25,11 +25,6 @@ interface FormData {
   useCase: string;
   targetUser: string;
   urls: string[];
-  tenantId: string;
-}
-
-function generateTenantId(): string {
-  return `tenant_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function OnboardPage() {
@@ -40,7 +35,6 @@ function OnboardPage() {
     useCase: "",
     targetUser: "",
     urls: [""],
-    tenantId: generateTenantId(),
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,16 +80,13 @@ function OnboardPage() {
       setError(null);
       try {
         const validUrls = form.urls.filter((u) => u.trim().length > 0);
-        const { jobId } = await createPipeline(form.tenantId, { urls: validUrls });
-        localStorage.setItem(
-          `cymek_${form.tenantId}`,
-          JSON.stringify({
-            apiKey: form.apiKey,
-            useCase: form.useCase,
-            targetUser: form.targetUser,
-            tenantId: form.tenantId,
-          }),
+        const { tenantId, jobId } = await createPipeline(
+          form.apiKey,
+          form.useCase,
+          form.targetUser,
+          { urls: validUrls },
         );
+        localStorage.setItem("cymek_tenant", tenantId);
         router.push(`/pipeline/${jobId}`);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to create pipeline");
@@ -153,7 +144,7 @@ function OnboardPage() {
             <div className="flex flex-col gap-2">
               <h2 className="text-h4 text-ink">Enter your OpenAI API Key</h2>
               <p className="text-body-sm text-steel mb-2">
-                Your key is stored locally and never sent to our servers.
+                Your key is encrypted and stored securely on our server.
               </p>
               <TextInput
                 label="OpenAI API Key"

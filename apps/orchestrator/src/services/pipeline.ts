@@ -12,8 +12,9 @@ import {
   MAX_RETRIES,
   EVAL_MIN_SCORE,
 } from "@cymek/shared";
-import type { OpenAIService } from "./openai.js";
+import { createOpenAIService, type OpenAIService } from "./openai.js";
 import type { SidecarClient } from "./sidecar-client.js";
+import type { EncryptionService } from "./encryption.js";
 
 type Db = PostgresJsDatabase<typeof schema>;
 
@@ -24,10 +25,11 @@ export interface SseEmitter {
 
 export function createPipelineService(
   db: Db,
-  openAI: OpenAIService,
   sidecar: SidecarClient,
   pgBoss: PgBoss,
   logger: pino.Logger,
+  encryption: EncryptionService,
+  openAIBaseUrl: string,
 ) {
   const emitters = new Map<string, Set<SseEmitter>>();
 
@@ -88,21 +90,25 @@ export function createPipelineService(
     try {
       await updateJob(jobId, { status: "processing" });
 
+      const openAI = await createTenantOpenAI(tenantId);
+
       const extractedDocs = await stageIngesting(tenantId, jobId, config);
       const chunkSize = (config.chunkSize as number | undefined) ?? DEFAULT_CHUNK_SIZE;
       const chunkOverlap = (config.chunkOverlap as number | undefined) ?? DEFAULT_CHUNK_OVERLAP;
       await stageChunking(tenantId, jobId, chunkSize, chunkOverlap);
-      await stageEmbedding(jobId);
+      await stageEmbedding(jobId, openAI);
       const allChunks = await getAllChunks(jobId);
-      const promptContent = await stagePromptGen(tenantId, jobId, allChunks);
-      const score = await stageEvaluating(tenantId, jobId, allChunks, promptContent);
+      const useCase = (config.useCase as string) ?? "";
+      const targetUser = (config.targetUser as string) ?? "";
+      const promptContent = await stagePromptGen(tenantId, jobId, allChunks, useCase, targetUser, openAI);
+      const score = await stageEvaluating(tenantId, jobId, allChunks, promptContent, openAI);
 
       if (score >= EVAL_MIN_SCORE) {
         await deployPipeline(jobId);
       } else {
         const retryCount = await getRetryCount(jobId);
         if (retryCount < MAX_RETRIES) {
-          await handleRetry(jobId, tenantId, config, retryCount);
+          await handleRetry(jobId, tenantId, config, retryCount, openAI);
         } else {
           await deployPipeline(jobId, true);
         }
@@ -113,6 +119,23 @@ export function createPipelineService(
       await updateJob(jobId, { status: "failed", error: message });
       emitEvent(jobId, { stage: "evaluating", error: message });
     }
+  }
+
+  async function createTenantOpenAI(tenantId: string): Promise<OpenAIService> {
+    const [tenant] = await db
+      .select({
+        apiKeyEncrypted: schema.tenants.apiKeyEncrypted,
+        apiKeyNonce: schema.tenants.apiKeyNonce,
+      })
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, tenantId));
+
+    if (!tenant?.apiKeyEncrypted || !tenant?.apiKeyNonce) {
+      throw new Error(`No API key configured for tenant ${tenantId}`);
+    }
+
+    const apiKey = encryption.decrypt(tenant.apiKeyEncrypted, tenant.apiKeyNonce);
+    return createOpenAIService(apiKey, openAIBaseUrl);
   }
 
   async function stageIngesting(
@@ -203,7 +226,7 @@ export function createPipelineService(
     emitEvent(jobId, { stage: "chunking", progress: 100, chunkCount: totalChunks });
   }
 
-  async function stageEmbedding(jobId: string): Promise<void> {
+  async function stageEmbedding(jobId: string, openAI: OpenAIService): Promise<void> {
     await updateJob(jobId, { stage: "embedding" });
     emitEvent(jobId, { stage: "embedding", progress: 0 });
 
@@ -237,11 +260,14 @@ export function createPipelineService(
     tenantId: string,
     jobId: string,
     chunks: string[],
+    useCase: string,
+    targetUser: string,
+    openAI: OpenAIService,
   ): Promise<string> {
     await updateJob(jobId, { stage: "prompt_gen" });
     emitEvent(jobId, { stage: "prompt_gen" });
 
-    const promptContent = await openAI.generateSystemPrompt(chunks);
+    const promptContent = await openAI.generateSystemPrompt(chunks, useCase, targetUser);
 
     await db.insert(schema.systemPrompts).values({
       tenantId,
@@ -257,6 +283,7 @@ export function createPipelineService(
     jobId: string,
     chunks: string[],
     promptContent: string,
+    openAI: OpenAIService,
   ): Promise<number> {
     await updateJob(jobId, { stage: "evaluating" });
     emitEvent(jobId, { stage: "evaluating", progress: 0 });
@@ -305,47 +332,50 @@ export function createPipelineService(
   async function handleRetry(
     jobId: string,
     tenantId: string,
-    _config: PipelineConfig,
+    config: PipelineConfig,
     retryCount: number,
+    openAI: OpenAIService,
   ): Promise<void> {
+    const useCase = (config.useCase as string) ?? "";
+    const targetUser = (config.targetUser as string) ?? "";
     await updateJob(jobId, { retryCount: retryCount + 1 });
 
     if (retryCount === 0) {
-      await reChunkAndReEmbed(jobId, tenantId, RETRY_CHUNK_SIZE, RETRY_CHUNK_OVERLAP);
+      await reChunkAndReEmbed(jobId, tenantId, RETRY_CHUNK_SIZE, RETRY_CHUNK_OVERLAP, openAI);
       const allChunks = await getAllChunks(jobId);
-      const promptContent = await stagePromptGen(tenantId, jobId, allChunks);
-      const score = await stageEvaluating(tenantId, jobId, allChunks, promptContent);
+      const promptContent = await stagePromptGen(tenantId, jobId, allChunks, useCase, targetUser, openAI);
+      const score = await stageEvaluating(tenantId, jobId, allChunks, promptContent, openAI);
 
       if (score >= EVAL_MIN_SCORE) {
         await deployPipeline(jobId);
       } else if (retryCount + 1 < MAX_RETRIES) {
-        await handleRetry(jobId, tenantId, _config, retryCount + 1);
+        await handleRetry(jobId, tenantId, config, retryCount + 1, openAI);
       } else {
         await deployPipeline(jobId, true);
       }
     } else if (retryCount === 1) {
       const allChunks = await getAllChunks(jobId);
-      const promptContent = await openAI.regenerateSystemPrompt(allChunks);
+      const promptContent = await openAI.regenerateSystemPrompt(allChunks, useCase, targetUser);
       await db
         .insert(schema.systemPrompts)
         .values({ tenantId, name: `pipeline-${jobId}-retry-${retryCount}`, content: promptContent });
-      const score = await stageEvaluating(tenantId, jobId, allChunks, promptContent);
+      const score = await stageEvaluating(tenantId, jobId, allChunks, promptContent, openAI);
 
       if (score >= EVAL_MIN_SCORE) {
         await deployPipeline(jobId);
       } else if (retryCount + 1 < MAX_RETRIES) {
-        await handleRetry(jobId, tenantId, _config, retryCount + 1);
+        await handleRetry(jobId, tenantId, config, retryCount + 1, openAI);
       } else {
         await deployPipeline(jobId, true);
       }
     } else {
-      await reChunkAndReEmbed(jobId, tenantId, RETRY_CHUNK_SIZE, RETRY_CHUNK_OVERLAP);
+      await reChunkAndReEmbed(jobId, tenantId, RETRY_CHUNK_SIZE, RETRY_CHUNK_OVERLAP, openAI);
       const allChunks = await getAllChunks(jobId);
-      const promptContent = await openAI.regenerateSystemPrompt(allChunks);
+      const promptContent = await openAI.regenerateSystemPrompt(allChunks, useCase, targetUser);
       await db
         .insert(schema.systemPrompts)
         .values({ tenantId, name: `pipeline-${jobId}-retry-${retryCount}`, content: promptContent });
-      const score = await stageEvaluating(tenantId, jobId, allChunks, promptContent);
+      const score = await stageEvaluating(tenantId, jobId, allChunks, promptContent, openAI);
 
       if (score >= EVAL_MIN_SCORE) {
         await deployPipeline(jobId);
@@ -360,6 +390,7 @@ export function createPipelineService(
     tenantId: string,
     chunkSize: number,
     overlap: number,
+    openAI: OpenAIService,
   ): Promise<void> {
     const storedDocs = await db
       .select({ id: schema.documents.id, content: schema.documents.content })
@@ -386,7 +417,7 @@ export function createPipelineService(
     await updateJob(jobId, { chunkCount: totalChunks });
     emitEvent(jobId, { stage: "chunking", progress: 100, chunkCount: totalChunks });
 
-    await stageEmbedding(jobId);
+    await stageEmbedding(jobId, openAI);
   }
 
   async function deployPipeline(jobId: string, warning = false): Promise<void> {
