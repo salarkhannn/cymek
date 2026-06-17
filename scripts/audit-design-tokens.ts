@@ -57,13 +57,11 @@ function checkHardcodedColors(content: string, filePath: string): void {
 }
 
 function checkTwilightStripe(content: string, filePath: string): void {
-  if (filePath.includes("layout.tsx")) {
-    const hasGradient = content.includes("twilight") ||
-      content.includes("from-primary") ||
-      content.includes("to-cream") ||
-      content.includes("TwilightStripe")
-    if (!hasGradient) {
-      VIOLATIONS.push(`${filePath} — twilight stripe not found in layout`)
+  if (filePath.endsWith("layout.tsx")) {
+    const hasImport = content.includes("Footer") &&
+      content.includes("components/layout/Footer")
+    if (!hasImport) {
+      VIOLATIONS.push(`${filePath} — twilight stripe not found (layout should include Footer)`)
     }
   }
 }

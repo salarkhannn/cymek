@@ -1,4 +1,5 @@
-import { Button, Card, Badge, TwilightStripe, HeroBand } from "../components/ui";
+import Link from "next/link";
+import { Button, Card, Badge, HeroBand } from "../components/ui";
 
 export default function Home() {
   return (
@@ -13,8 +14,12 @@ export default function Home() {
             Build custom RAG pipelines on your docs. Deploy in minutes.
           </p>
           <div className="flex items-center justify-center gap-4">
-            <Button variant="cream">Get Started</Button>
-            <Button variant="secondary" className="text-on-primary border-on-dark-muted/30 hover:bg-white/10">Documentation</Button>
+            <Link href="/onboard">
+              <Button variant="cream">Get Started</Button>
+            </Link>
+            <Link href="/dashboard">
+              <Button variant="secondary" className="text-on-primary border-on-dark-muted/30 hover:bg-white/10">Dashboard</Button>
+            </Link>
           </div>
         </div>
       </HeroBand>
@@ -35,8 +40,6 @@ export default function Home() {
           </Card>
         </div>
       </section>
-
-      <TwilightStripe />
     </>
   );
 }
