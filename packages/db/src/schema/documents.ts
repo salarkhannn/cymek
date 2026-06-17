@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import { tenants } from "./tenants.js";
-import { jobs } from "./jobs.js";
+import { tenants } from "./tenants";
+import { jobs } from "./jobs";
 
 export const documents = pgTable("documents", {
   id: text("id").primaryKey().default(sql`gen_random_uuid()`),

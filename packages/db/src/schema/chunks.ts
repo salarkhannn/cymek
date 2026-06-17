@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { pgTable, text, timestamp, vector } from "drizzle-orm/pg-core";
-import { documents } from "./documents.js";
+import { documents } from "./documents";
 
 export const chunks = pgTable("chunks", {
   id: text("id").primaryKey().default(sql`gen_random_uuid()`),

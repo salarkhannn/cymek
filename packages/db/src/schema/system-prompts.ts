@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import { tenants } from "./tenants.js";
+import { tenants } from "./tenants";
 
 export const systemPrompts = pgTable("system_prompts", {
   id: text("id").primaryKey().default(sql`gen_random_uuid()`),

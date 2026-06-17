@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { pgTable, text, timestamp, doublePrecision } from "drizzle-orm/pg-core";
-import { tenants } from "./tenants.js";
-import { jobs } from "./jobs.js";
+import { tenants } from "./tenants";
+import { jobs } from "./jobs";
 
 export const evalResults = pgTable("eval_results", {
   id: text("id").primaryKey().default(sql`gen_random_uuid()`),
