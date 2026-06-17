@@ -1,0 +1,11 @@
+app = "cymek-sidecar"
+primary_region = "iad"
+
+[http_service]
+  internal_port = 8001
+  force_https = true
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

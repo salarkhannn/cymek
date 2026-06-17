@@ -1,0 +1,20 @@
+{
+  "name": "cymek",
+  "private": true,
+  "scripts": {
+    "dev:web": "pnpm --filter @cymek/web dev",
+    "dev:orchestrator": "pnpm --filter @cymek/orchestrator dev",
+    "dev:sidecar": "cd apps/sidecar && uvicorn app.main:app --reload --port 8001",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:run": "pnpm -r test:run",
+    "db:generate": "pnpm --filter @cymek/db generate",
+    "db:migrate": "pnpm --filter @cymek/db migrate",
+    "db:push": "pnpm --filter @cymek/db push",
+    "lint": "pnpm -r lint"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

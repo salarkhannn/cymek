@@ -1,0 +1,28 @@
+{
+  "name": "@cymek/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "next": "^14.2.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "@cymek/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0",
+    "@vitejs/plugin-react": "^4.3.0"
+  }
+}
