@@ -12,17 +12,25 @@
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@cymek/shared": "workspace:*",
+    "autoprefixer": "^10.5.0",
     "next": "^14.2.0",
+    "postcss": "^8.5.15",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "@cymek/shared": "workspace:*"
+    "tailwindcss": "^3.4.19"
   },
   "devDependencies": {
+    "@storybook/addon-essentials": "^8.6.0",
+    "@storybook/addon-interactions": "^8.6.0",
+    "@storybook/blocks": "^8.6.0",
+    "@storybook/nextjs": "^8.6.0",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "storybook": "^8.6.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.0.0",
-    "@vitejs/plugin-react": "^4.3.0"
+    "vitest": "^2.0.0"
   }
 }

@@ -442,15 +442,16 @@ export function createPipelineService(
 
 export type PipelineService = ReturnType<typeof createPipelineService>;
 
-function splitText(text: string, chunkSize: number, overlap: number): string[] {
+export function splitText(text: string, chunkSize: number, overlap: number): string[] {
   const chunks: string[] = [];
+  const step = Math.max(chunkSize - overlap, 1);
   let start = 0;
 
   while (start < text.length) {
     const end = Math.min(start + chunkSize, text.length);
     if (end <= start) break;
     chunks.push(text.slice(start, end));
-    start += chunkSize - overlap;
+    start += step;
   }
 
   return chunks;
