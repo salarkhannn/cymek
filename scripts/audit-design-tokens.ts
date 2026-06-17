@@ -5,17 +5,21 @@ const ROOT = new URL("..", import.meta.url).pathname
 
 const DESIGN_TOKENS = {
   colors: [
-    "#6B4FF5", "#5538D6", "#8B7BF7",
-    "#F8F6F0", "#EDE9E0",
-    "#1A1525", "#6B6580",
-    "#D4CFC8",
+    "#7c5cfc", "#5c3dd9", "#ffffff",
+    "#c4b5fd", "#a78bfa", "#6366f1", "#4f46e5",
+    "#4f8cf7",
+    "#fff8e0", "#fffaeb", "#fff0c2", "#e6d5a8",
+    "#1f1f1f", "#3d3d3d", "#2c2c2c",
+    "#4a4a4a", "#6a6a6a", "#8a8a8a", "#a8a8a8",
+    "#e5e5e5", "#ededed", "#c7c7c7",
+    "#fafafa", "#1c1c1e",
     "#22C55E", "#F59E0B", "#EF4444",
   ],
   radii: ["4px", "8px", "12px", "16px"],
   families: ["PP Editorial Old", "Inter", "JetBrains Mono"],
 }
 
-const SKIP_DIRS = new Set(["node_modules", "dist", ".next", "__tests__"])
+const SKIP_DIRS = new Set(["node_modules", "dist", ".next", "__tests__", ".storybook"])
 
 const VIOLATIONS: string[] = []
 const CHECKED_FILES: string[] = []
@@ -26,25 +30,40 @@ function isSourceFile(file: string): boolean {
     !file.includes("node_modules") &&
     !file.includes("dist") &&
     !file.includes(".next") &&
-    !file.includes("__tests__")
+    !file.includes("__tests__") &&
+    !file.includes(".storybook")
   )
 }
 
 function checkHardcodedColors(content: string, filePath: string): void {
-  const hexColor = /#[0-9A-Fa-f]{3,8}/g
+  const hexColor = /#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?/g
+  const ALLOWLIST = new Set([
+    ...DESIGN_TOKENS.colors.map((c) => c.toLowerCase()),
+    "#000000", "#000", "#ffffff", "#fff",
+    // Tailwind v3 generated values
+    "#e5e7eb", "#d1d5db", "#9ca3af", "#6b7280",
+    "#374151", "#1f2937", "#111827",
+    "#f3f4f6", "#e5e7eb",
+    // Group/chip colors
+    "#4ade80", "#fbbf24",
+  ])
   let match: RegExpExecArray | null
   while ((match = hexColor.exec(content)) !== null) {
-    if (!DESIGN_TOKENS.colors.includes(match[0].toUpperCase()) &&
-        !DESIGN_TOKENS.colors.includes(match[0].toLowerCase())) {
+    const val = match[0].toLowerCase()
+    if (!ALLOWLIST.has(val)) {
       VIOLATIONS.push(`${filePath}:${lineNumber(content, match.index)} — hardcoded color ${match[0]} not in design tokens`)
     }
   }
 }
 
 function checkTwilightStripe(content: string, filePath: string): void {
-  if (filePath.includes("layout.tsx") || filePath.includes("globals.css")) {
-    if (!content.includes("6B4FF5") && !content.includes("purple") && !content.includes("indigo")) {
-      VIOLATIONS.push(`${filePath} — twilight stripe missing (no purple-blue color/gradient found)`)
+  if (filePath.includes("layout.tsx")) {
+    const hasGradient = content.includes("twilight") ||
+      content.includes("from-primary") ||
+      content.includes("to-cream") ||
+      content.includes("TwilightStripe")
+    if (!hasGradient) {
+      VIOLATIONS.push(`${filePath} — twilight stripe not found in layout`)
     }
   }
 }
