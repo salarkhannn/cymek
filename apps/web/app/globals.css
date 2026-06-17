@@ -1,12 +1,39 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: var(--font-body), Inter, system-ui, -apple-system, sans-serif;
+    background-color: theme('colors.surface');
+    color: theme('colors.ink');
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5 {
+    font-family: var(--font-display), "PP Editorial Old", serif;
+  }
+
+  code, pre {
+    font-family: var(--font-mono), "JetBrains Mono", monospace;
+  }
 }
 
-body {
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
-  background: #F8F6F0;
-  color: #1A1525;
-  -webkit-font-smoothing: antialiased;
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer components {
+  .twilight-gradient {
+    background: linear-gradient(135deg, theme('colors.twilight.700'), theme('colors.blue-saturated'));
+  }
 }
