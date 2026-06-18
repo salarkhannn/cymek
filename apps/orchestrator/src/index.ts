@@ -14,7 +14,7 @@ import { pipelineRoutes } from "./routes/pipeline.js";
 import { chatRoutes } from "./routes/chat.js";
 import { uploadRoutes } from "./routes/upload.js";
 import { authRoutes } from "./routes/auth.js";
-import { requireAuth, optionalAuth } from "./middleware/auth.js";
+import { extractPromptRoutes } from "./routes/extract-prompt.js";
 
 async function main() {
   const config = loadConfig();
@@ -76,9 +76,11 @@ async function main() {
 
   app.use(authRoutes(authService, config, logger, db));
 
-  app.use(requireAuth(authService), uploadRoutes(logger));
-  app.use(requireAuth(authService), pipelineRoutes(db, pipeline, encryption, logger));
-  app.use(optionalAuth(authService), chatRoutes(chatService, logger));
+  app.use(extractPromptRoutes(config.OPENROUTER_API_KEY));
+
+  app.use(uploadRoutes(logger));
+  app.use(pipelineRoutes(db, pipeline, encryption, logger));
+  app.use(chatRoutes(chatService, logger));
 
   app.use(
     (

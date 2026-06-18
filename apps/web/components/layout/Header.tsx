@@ -1,48 +1,49 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth } from "../../lib/auth";
+import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { Button } from "../ui/Button";
 
 function Header() {
-  const { user, loading, logout } = useAuth();
-
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-hairline bg-canvas/95 backdrop-blur-sm">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
+    <header className="w-full bg-neutral">
+      <div className="mx-auto flex h-[80px] max-w-7xl items-center justify-between px-6">
         <Link href="/" className="flex items-center gap-2">
-          <span className="text-h5 font-display text-primary">Cymek</span>
+          <span className="text-[23px] font-bold text-primary">Cymek</span>
         </Link>
         <nav className="flex items-center gap-6">
-          {loading ? null : !user ? (
-            <>
-              <Link href="/login" className="text-body-sm text-steel hover:text-ink transition-colors">
-                Log in
-              </Link>
-              <Link href="/signup">
-                <Button variant="primary" className="h-8 px-4 text-micro">
-                  Sign up
-                </Button>
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link href="/dashboard" className="text-body-sm text-steel hover:text-ink transition-colors">
-                Dashboard
-              </Link>
-              <Link href="/onboard">
-                <Button variant="primary" className="h-8 px-4 text-micro">
-                  New Pipeline
-                </Button>
-              </Link>
-              <button
-                onClick={() => logout()}
-                className="text-body-sm text-steel hover:text-ink transition-colors"
-              >
-                Log out
+          <Show when="signed-out">
+            <SignInButton mode="modal">
+              <button className="text-[14px] font-medium text-primary hover:text-secondary transition-colors cursor-pointer">
+                Sign in
               </button>
-            </>
-          )}
+            </SignInButton>
+            <SignUpButton mode="modal">
+              <Button variant="secondary" className="h-[48px] w-[166px] px-0 rounded-md border border-border text-[16px] font-medium text-primary bg-transparent hover:bg-tertiary">
+                Get started
+              </Button>
+            </SignUpButton>
+          </Show>
+          <Show when="signed-in">
+            <Link
+              href="/dashboard"
+              className="text-[14px] font-medium text-primary hover:text-secondary transition-colors"
+            >
+              Dashboard
+            </Link>
+            <Link href="/onboard">
+              <Button variant="secondary" className="h-[48px] w-[166px] px-0 rounded-md border border-border text-[16px] font-medium text-primary bg-transparent hover:bg-tertiary">
+                New Pipeline
+              </Button>
+            </Link>
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: "w-8 h-8 rounded-md",
+                },
+              }}
+            />
+          </Show>
         </nav>
       </div>
     </header>

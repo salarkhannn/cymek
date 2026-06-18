@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "../../lib/auth";
+import { useUser } from "@clerk/nextjs";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -27,7 +27,7 @@ interface TenantListItem {
 
 function DashboardPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, isLoaded } = useUser();
   const [tenants, setTenants] = useState<TenantListItem[]>([]);
   const [selectedTenant, setSelectedTenant] = useState<string | null>(null);
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
@@ -36,9 +36,9 @@ function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (!isLoaded) return;
     if (!user) {
-      router.push("/login");
+      router.push("/sign-in");
       return;
     }
 
@@ -58,7 +58,7 @@ function DashboardPage() {
         setLoading(false);
       }
     })();
-  }, [user, authLoading, router]);
+    }, [user, isLoaded, router]);
 
   useEffect(() => {
     if (!selectedTenant) return;
@@ -104,7 +104,7 @@ function DashboardPage() {
     ? `${window.location.origin}/api/chat/${tenantInfo.id}`
     : "";
 
-  if (authLoading || loading) {
+  if (!isLoaded || loading) {
     return (
       <div className="mx-auto max-w-4xl px-6 py-section">
         <p className="text-body-md text-steel">Loading...</p>

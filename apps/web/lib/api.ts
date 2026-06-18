@@ -1,19 +1,5 @@
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("cymek_token");
-}
-
-function authHeaders(): Record<string, string> {
-  const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const headers: Record<string, string> = {
-    ...authHeaders(),
-    ...(options.headers as Record<string, string> || {}),
-  };
-  return fetch(url, { ...options, headers });
+  return fetch(url, options);
 }
 
 export interface SseEvent {

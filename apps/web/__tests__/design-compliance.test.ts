@@ -63,25 +63,28 @@ describe("design compliance — twilight stripe", () => {
     expect(content).toMatch(/TwilightStripe/)
   })
 
-  it("Root layout includes Footer (and thus twilight stripe on every page)", () => {
+  it("Root layout imports Footer (and thus twilight stripe on every page)", () => {
     const layoutPath = sourceFiles.find((f) => f.endsWith("/layout.tsx"))
     expect(layoutPath).toBeDefined()
     const content = readFileSync(layoutPath!, "utf-8")
     expect(content).toMatch(/Footer/)
     expect(content).toMatch(/components\/layout\/Footer/)
+    expect(content).toMatch(/<Footer\s*\/>/)
   })
 })
 
 describe("design compliance — typography", () => {
-  it("Layout loads Playfair Display for --font-display", () => {
+  it("Layout loads Inter for --font-body and Space Mono for --font-mono", () => {
     const layoutPath = sourceFiles.find((f) => f.endsWith("/layout.tsx"))
     expect(layoutPath).toBeDefined()
     const content = readFileSync(layoutPath!, "utf-8")
-    expect(content).toMatch(/Playfair_Display/)
-    expect(content).toMatch(/--font-display/)
+    expect(content).toMatch(/Inter/)
+    expect(content).toMatch(/Space_Mono/)
+    expect(content).toMatch(/--font-body/)
+    expect(content).toMatch(/--font-mono/)
   })
 
-  it("PP Editorial Old is the display font fallback", () => {
+  it("PP Editorial Old is the display font fallback in globals.css", () => {
     const globalsPath = sourceFiles.find((f) => f.endsWith("globals.css"))
     expect(globalsPath).toBeDefined()
     const content = readFileSync(globalsPath!, "utf-8")

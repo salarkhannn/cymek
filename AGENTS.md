@@ -11,7 +11,7 @@ Cymek is NOT a document Q&A tool. Cymek is a **one-click AI pipeline builder** t
 
 ## Repo Map
 
-- `apps/web/` — Next.js 14 (App Router) frontend with onboarding, dashboard, pipeline, chat pages
+- `apps/web/` — Next.js 16 (App Router) frontend with onboarding, dashboard, pipeline, chat pages
 - `apps/orchestrator/` — Node.js + Express pipeline engine with pg-boss queue
 - `apps/sidecar/` — Python FastAPI document extraction service
 - `packages/shared/` — Types, constants (models, dims), validators
@@ -26,7 +26,7 @@ Twilight design system (purple-blue, cream surfaces, PP Editorial Old + Inter). 
 
 - `pnpm dev:web` — Start Next.js (port 3000)
 - `pnpm dev:orchestrator` — Start orchestrator (port 3001)
-- `pnpm dev:sidecar` — Start Python sidecar (port 8000)
+- `pnpm dev:sidecar` — Start Python sidecar (port 8001)
 - `pnpm db:migrate` — Run DB migrations
 - `pnpm db:generate` — Generate new migration after schema changes
 - `pnpm test:run` — Run tests

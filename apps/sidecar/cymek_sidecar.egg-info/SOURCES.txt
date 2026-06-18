@@ -1,0 +1,10 @@
+pyproject.toml
+app/__init__.py
+app/main.py
+cymek_sidecar.egg-info/PKG-INFO
+cymek_sidecar.egg-info/SOURCES.txt
+cymek_sidecar.egg-info/dependency_links.txt
+cymek_sidecar.egg-info/requires.txt
+cymek_sidecar.egg-info/top_level.txt
+tests/test_extraction.py
+tests/test_health.py

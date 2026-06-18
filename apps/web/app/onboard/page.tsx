@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
@@ -36,6 +36,48 @@ function nextFileId(): string {
 
 function OnboardPage() {
   const router = useRouter();
+
+  const [initialStep, setInitialStep] = useState<Step | null>(null);
+
+  useEffect(() => {
+    const extractedRaw = localStorage.getItem("cymek_extracted");
+    const urlsRaw = localStorage.getItem("cymek_urls");
+
+    if (extractedRaw) {
+      try {
+        const extracted = JSON.parse(extractedRaw) as { useCase?: string | null; targetUser?: string | null; missingInfo?: string[] };
+        const prefill: Partial<FormData> = {};
+
+        if (extracted.useCase) prefill.useCase = extracted.useCase;
+        if (extracted.targetUser) prefill.targetUser = extracted.targetUser;
+        if (urlsRaw) {
+          const parsedUrls = JSON.parse(urlsRaw) as string[];
+          if (parsedUrls.length > 0) {
+            prefill.urls = [...parsedUrls, ""];
+          }
+        }
+
+        if (Object.keys(prefill).length > 0) {
+          setForm((prev) => ({ ...prev, ...prefill }));
+        }
+
+        const missing = extracted.missingInfo ?? [];
+        if (missing.length > 0) {
+          if (!missing.includes("apiKey")) missing.push("apiKey");
+          const firstMissing = missing[0] as Step | undefined;
+          if (firstMissing && STEP_ORDER.includes(firstMissing)) {
+            setInitialStep(firstMissing);
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+
+    localStorage.removeItem("cymek_extracted");
+    localStorage.removeItem("cymek_urls");
+  }, []);
+
   const [step, setStep] = useState<Step>("api-key");
   const [form, setForm] = useState<FormData>({
     apiKey: "",
@@ -43,6 +85,12 @@ function OnboardPage() {
     targetUser: "",
     urls: [""],
   });
+
+  useEffect(() => {
+    if (initialStep) {
+      setStep(initialStep);
+    }
+  }, [initialStep]);
   const [uploadFilesList, setUploadFilesList] = useState<UploadFileItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

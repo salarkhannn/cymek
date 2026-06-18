@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: cymek-sidecar
+Version: 0.1.0
+Requires-Python: >=3.12
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.24; extra == "dev"
+Requires-Dist: httpx>=0.28; extra == "dev"

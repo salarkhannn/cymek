@@ -14,6 +14,7 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.5.5",
     "@cymek/shared": "workspace:*",
     "autoprefixer": "^10.5.0",
     "next": "^16.2.9",
