@@ -1,23 +1,48 @@
 "use client";
 
-import { useState } from "react";
-import { Button, TextInput, Card, Badge, CodeBlock } from "../../components/ui";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Button, TextInput, Card, Badge } from "../../components/ui";
+import { streamChatResponse } from "../../lib/api";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
 
-export default function ChatPage() {
+function ChatContent() {
+  const searchParams = useSearchParams();
+  const tenantId = searchParams.get("tenantId") ?? "";
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Ask me anything about your documents. I'll search the knowledge base and respond with citations." },
+    { role: "assistant", content: tenantId ? "Connected. Ask me anything about your documents." : "No tenant selected. Add ?tenantId=... to the URL." },
   ]);
+  const [loading, setLoading] = useState(false);
 
   const handleSend = () => {
-    if (!query.trim()) return;
-    setMessages((prev) => [...prev, { role: "user", content: query }, { role: "assistant", content: "This is a preview — connect to the orchestrator SSE endpoint for real responses." }]);
+    const msg = query;
+    if (!msg.trim() || !tenantId || loading) return;
+    setLoading(true);
     setQuery("");
+
+    setMessages((prev) => [...prev, { role: "user", content: msg }, { role: "assistant", content: "" }]);
+
+    let accumulated = "";
+    streamChatResponse(
+      tenantId,
+      msg,
+      undefined,
+      (chunk) => {
+        accumulated += chunk;
+        setMessages((prev) => {
+          const next = [...prev];
+          next[next.length - 1] = { role: "assistant", content: accumulated };
+          return next;
+        });
+      },
+      () => setLoading(false),
+      () => setLoading(false),
+    );
   };
 
   return (
@@ -74,5 +99,13 @@ export default function ChatPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-surface flex items-center justify-center"><p className="text-body-md text-steel">Loading...</p></div>}>
+      <ChatContent />
+    </Suspense>
   );
 }

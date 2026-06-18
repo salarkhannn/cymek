@@ -1,4 +1,4 @@
-const DEFAULT_API_URL = ""; // relative to page origin
+const DEFAULT_API_URL = "/api"; // relative to page origin
 
 let apiUrl = DEFAULT_API_URL;
 

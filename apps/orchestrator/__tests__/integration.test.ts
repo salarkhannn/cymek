@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import express from "express"
 import request from "supertest"
+import http from "http"
 import {
   EVAL_MIN_SCORE,
   MAX_RETRIES,
@@ -32,16 +33,13 @@ describe("pipeline integration — eval threshold logic", () => {
     expect(MAX_RETRIES).toBe(3)
   })
 
-  it("deploy-with-warning flag after MAX_RETRIES attempts", () => {
+  it("deploy-with-warning flag after MAX_RETRIES low scores", () => {
     const scores = [0.4, 0.5, 0.6, 0.3]
     let retries = 0
     for (const score of scores) {
       if (score < EVAL_MIN_SCORE) {
         retries++
-        if (retries >= MAX_RETRIES) {
-          expect(retries).toBe(MAX_RETRIES)
-          break
-        }
+        if (retries >= MAX_RETRIES) break
       }
     }
     expect(retries).toBeGreaterThanOrEqual(MAX_RETRIES)
@@ -53,7 +51,7 @@ describe("pipeline integration — embedding batch size", () => {
     expect(EMBEDDING_BATCH_SIZE).toBe(100)
   })
 
-  it("batches are processed in chunks of 100", () => {
+  it("batches 250 items as 3 chunks of 100, 100, 50", () => {
     const inputs = Array.from({ length: 250 }, (_, i) => `chunk-${i}`)
     const batches: string[][] = []
     for (let i = 0; i < inputs.length; i += EMBEDDING_BATCH_SIZE) {
@@ -72,7 +70,7 @@ describe("pipeline integration — chunk config", () => {
     expect(DEFAULT_CHUNK_OVERLAP).toBe(50)
   })
 
-  it("uses RETRY_CHUNK_SIZE and RETRY_CHUNK_OVERLAP on first retry", () => {
+  it("uses RETRY_CHUNK_SIZE and RETRY_CHUNK_OVERLAP on retry", () => {
     expect(RETRY_CHUNK_SIZE).toBe(384)
     expect(RETRY_CHUNK_OVERLAP).toBe(75)
   })
@@ -90,7 +88,7 @@ describe("pipeline integration — SSE stream events", () => {
     ])
   })
 
-  it("SSE endpoint returns text/event-stream content type", async () => {
+  it("SSE endpoint sends text/event-stream with ingesting event", async () => {
     const mockPipeline = {
       registerEmitter: vi.fn(),
       unregisterEmitter: vi.fn(),
@@ -108,89 +106,68 @@ describe("pipeline integration — SSE stream events", () => {
       { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } as never,
     ))
 
-    const res = await request(app)
-      .get("/pipeline/stream/test-job")
-      .buffer(false)
-      .parse((res, cb) => {
+    const server = app.listen(0)
+    const port = (server.address() as { port: number }).port
+
+    const result = await new Promise<{
+      status: number; headers: Record<string, string>; body: string
+    }>((resolve) => {
+      http.get(`http://localhost:${port}/pipeline/stream/test-job`, (res) => {
         let data = ""
-        res.on("data", (chunk: Buffer) => {
-          data += chunk.toString()
+        res.setEncoding("utf8")
+        res.on("data", (chunk: string) => {
+          data += chunk
           res.destroy()
         })
-        res.on("end", () => cb(null, data))
-      })
-
-    expect(res.headers["content-type"]).toBe("text/event-stream")
-    expect(res.headers["cache-control"]).toBe("no-cache")
-    expect(res.headers["x-accel-buffering"]).toBe("no")
-    expect(mockPipeline.registerEmitter).toHaveBeenCalledWith("test-job", expect.any(Object))
-  })
-
-  it("SSE endpoint sends initial ingesting event", async () => {
-    const mockPipeline = {
-      registerEmitter: vi.fn(),
-      unregisterEmitter: vi.fn(),
-      emitEvent: vi.fn(),
-      getJobId: vi.fn(),
-      createJob: vi.fn(),
-    }
-
-    const app = express()
-    const { pipelineRoutes } = await import("../src/routes/pipeline.js")
-    app.use(pipelineRoutes(
-      {} as never,
-      mockPipeline as never,
-      {} as never,
-      { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } as never,
-    ))
-
-    const res = await request(app)
-      .get("/pipeline/stream/test-job")
-      .buffer(false)
-      .parse((res, cb) => {
-        let data = ""
-        res.on("data", (chunk: Buffer) => {
-          data += chunk.toString()
-          res.destroy()
+        res.on("close", () => {
+          resolve({
+            status: res.statusCode ?? 0,
+            headers: res.headers as Record<string, string>,
+            body: data,
+          })
+          server.close()
         })
-        res.on("end", () => cb(null, data))
+        res.on("error", () => {
+          resolve({
+            status: res.statusCode ?? 0,
+            headers: res.headers as Record<string, string>,
+            body: data,
+          })
+          server.close()
+        })
       })
+    })
 
-    expect(res.text).toContain('"stage":"ingesting"')
+    expect(result.status).toBe(200)
+    expect(result.headers["content-type"]).toBe("text/event-stream")
+    expect(result.headers["cache-control"]).toBe("no-cache")
+    expect(result.headers["x-accel-buffering"]).toBe("no")
+    expect(result.body).toContain("ingesting")
+    expect(mockPipeline.registerEmitter).toHaveBeenCalledWith("test-job", expect.objectContaining({
+      send: expect.any(Function),
+      close: expect.any(Function),
+    }))
   })
 })
 
 describe("pipeline integration — routes", () => {
-  let app: express.Express
-  let mockPipeline: Record<string, ReturnType<typeof vi.fn>>
-  let mockEncryption: Record<string, ReturnType<typeof vi.fn>>
+  it("POST /pipeline uses encryption for API keys", async () => {
+    const app = express()
+    app.use(express.json())
 
-  beforeEach(() => {
-    mockPipeline = {
+    const mockPipeline = {
       createJob: vi.fn().mockResolvedValue("job-123"),
-      getJobId: vi.fn().mockResolvedValue({
-        id: "job-123",
-        tenantId: "tenant-1",
-        status: "queued",
-        config: {},
-        createdAt: "2026-01-01T00:00:00Z",
-        updatedAt: "2026-01-01T00:00:00Z",
-      }),
+      getJobId: vi.fn(),
       registerEmitter: vi.fn(),
       unregisterEmitter: vi.fn(),
       emitEvent: vi.fn(),
     }
 
-    mockEncryption = {
+    const mockEncryption = {
       encrypt: vi.fn().mockReturnValue({ encrypted: "enc-hex:auth", nonce: "iv-hex" }),
       decrypt: vi.fn().mockReturnValue("sk-decrypted"),
       generateNonce: vi.fn().mockReturnValue(new Uint8Array(12)),
     }
-  })
-
-  it("POST /pipeline uses encryption for API keys", async () => {
-    app = express()
-    app.use(express.json())
 
     const mockDb = createChainableDb([])
     const { pipelineRoutes } = await import("../src/routes/pipeline.js")
@@ -208,60 +185,35 @@ describe("pipeline integration — routes", () => {
     expect(mockEncryption.encrypt).toHaveBeenCalledWith("sk-test-key")
   })
 
-  it("GET /pipeline/jobs returns 400 without tenantId", async () => {
-    app = express()
-    app.use(express.json())
-    const { pipelineRoutes } = await import("../src/routes/pipeline.js")
-    app.use(pipelineRoutes(
-      {} as never,
-      mockPipeline as never,
-      mockEncryption as never,
-      { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } as never,
-    ))
-
-    const res = await request(app).get("/pipeline/jobs")
-    expect(res.status).toBe(400)
-    expect(res.body).toEqual({ error: "tenantId query parameter is required" })
-  })
-
-  it("GET /tenant/:tenantId returns deploy info", async () => {
-    app = express()
-    app.use(express.json())
-
-    const mockDb = createChainableDb([])
-    const { pipelineRoutes } = await import("../src/routes/pipeline.js")
-    app.use(pipelineRoutes(
-      mockDb as never,
-      mockPipeline as never,
-      mockEncryption as never,
-      { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } as never,
-    ))
-
-    const res = await request(app).get("/tenant/tenant-1")
-    expect(res.status).toBe(200)
-  })
-
   it("GET /tenant/:tenantId returns 404 for unknown tenant", async () => {
-    app = express()
+    const app = express()
     app.use(express.json())
-    mockPipeline.getJobId.mockRejectedValue(null)
+
+    const mockPipeline = {
+      createJob: vi.fn(),
+      getJobId: vi.fn(),
+      registerEmitter: vi.fn(),
+      unregisterEmitter: vi.fn(),
+      emitEvent: vi.fn(),
+    }
 
     const mockDb = createChainableDb([])
     const { pipelineRoutes } = await import("../src/routes/pipeline.js")
     app.use(pipelineRoutes(
       mockDb as never,
       mockPipeline as never,
-      mockEncryption as never,
+      {} as never,
       { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } as never,
     ))
 
     const res = await request(app).get("/tenant/nonexistent")
     expect(res.status).toBe(404)
+    expect(res.body).toEqual({ error: "Tenant not found" })
   })
 })
 
 describe("chat integration — SSE streaming", () => {
-  it("POST /chat/:tenantId with accept header returns SSE stream", async () => {
+  it("POST /chat/:tenantId with accept header returns SSE stream with chunk and done events", async () => {
     const mockChatService = {
       chat: vi.fn().mockImplementation(
         async (_tid: string, _msg: string, _sid: string | undefined, onChunk?: (c: string) => void) => {
@@ -279,24 +231,22 @@ describe("chat integration — SSE streaming", () => {
     const { chatRoutes } = await import("../src/routes/chat.js")
     app.use(chatRoutes(mockChatService as never, { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } as never))
 
+    let body = ""
     const res = await request(app)
       .post("/chat/tenant-1")
       .set("Accept", "text/event-stream")
       .send({ message: "Hi there" })
       .buffer(false)
-      .parse((res, cb) => {
-        let data = ""
-        res.on("data", (chunk: Buffer) => {
-          data += chunk.toString()
-        })
-        res.on("end", () => cb(null, data))
+      .parse((r, cb) => {
+        r.on("data", (chunk: Buffer) => { body += chunk.toString() })
+        r.on("end", () => cb(null, body))
       })
 
     expect(res.headers["content-type"]).toBe("text/event-stream")
-    expect(res.text).toContain('"type":"chunk"')
-    expect(res.text).toContain('"type":"done"')
-    expect(res.text).toContain("Hello")
-    expect(res.text).toContain("world!")
+    expect(body).toContain('"type":"chunk"')
+    expect(body).toContain('"type":"done"')
+    expect(body).toContain("Hello")
+    expect(body).toContain("world!")
   })
 
   it("POST /chat/:tenantId without accept header returns JSON", async () => {

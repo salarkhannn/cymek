@@ -3,6 +3,7 @@ import {
   EMBEDDING_MODEL,
   CHAT_MODEL,
   EVAL_MODEL,
+  EMBEDDING_DIMENSIONS,
   EMBEDDING_BATCH_SIZE,
   RANDOM_SAMPLE_COUNT,
 } from "@cymek/shared";
@@ -11,10 +12,11 @@ export function createOpenAIService(apiKey: string, baseURL?: string) {
   const client = new OpenAI({ apiKey, baseURL });
 
   async function createEmbedding(input: string): Promise<number[]> {
-    const response = await client.embeddings.create({
-      model: EMBEDDING_MODEL,
-      input,
-    });
+      const response = await client.embeddings.create({
+        model: EMBEDDING_MODEL,
+        input,
+        dimensions: EMBEDDING_DIMENSIONS,
+      });
     return response.data[0].embedding;
   }
 
@@ -25,6 +27,7 @@ export function createOpenAIService(apiKey: string, baseURL?: string) {
       const response = await client.embeddings.create({
         model: EMBEDDING_MODEL,
         input: batch,
+        dimensions: EMBEDDING_DIMENSIONS,
       });
       const sorted = response.data.sort((a, b) => a.index - b.index);
       for (const item of sorted) {

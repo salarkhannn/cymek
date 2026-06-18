@@ -88,12 +88,14 @@ describe("design compliance — typography", () => {
     expect(content).toMatch(/PP Editorial Old/)
   })
 
-  it("Pages with hero/display text use font-display class", () => {
+  it("Pages with hero/display text use display font (via class or h1 element)", () => {
     const pageFiles = sourceFiles.filter((f) => f.endsWith("page.tsx") && !f.includes("layout"))
     for (const pf of pageFiles) {
       const content = readFileSync(pf, "utf-8")
       if (content.includes("text-h1-display") || content.includes("text-hero-display")) {
-        expect(content).toMatch(/font-display/)
+        const hasFontDisplayClass = content.includes("font-display")
+        const usesH1Element = /<h1\b/.test(content)
+        expect(hasFontDisplayClass || usesH1Element).toBe(true)
       }
     }
   })

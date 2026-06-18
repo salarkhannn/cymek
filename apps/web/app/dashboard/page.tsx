@@ -138,6 +138,15 @@ function DashboardPage() {
         </Card>
       </div>
 
+      <div className="flex gap-3 mb-6">
+        <Button variant="primary" onClick={() => router.push(`/chat?tenantId=${tenantInfo.id}`)}>
+          Open Chat
+        </Button>
+        <Button variant="secondary" onClick={() => router.push("/onboard")}>
+          New Pipeline
+        </Button>
+      </div>
+
       {latestJob?.evalScore !== null && latestJob?.evalScore !== undefined && (
         <Card variant="base" className="mb-6">
           <ScoreBar

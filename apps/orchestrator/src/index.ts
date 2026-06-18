@@ -36,6 +36,8 @@ async function main() {
   await pgBoss.start();
   logger.info("pg-boss started");
 
+  await pgBoss.createQueue("pipeline-process");
+
   const pipeline = createPipelineService(db, sidecar, pgBoss, logger, encryption, config.OPENAI_BASE_URL);
 
   await pgBoss.work<{ jobId: string; tenantId: string; config: PipelineConfig }>(

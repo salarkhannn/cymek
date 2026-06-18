@@ -4,16 +4,8 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: "/api/pipeline/:path*",
-        destination: "http://localhost:3001/pipeline/:path*",
-      },
-      {
-        source: "/api/chat/:path*",
-        destination: "http://localhost:3001/chat/:path*",
-      },
-      {
-        source: "/api/health",
-        destination: "http://localhost:3001/health",
+        source: "/api/:path*",
+        destination: "http://localhost:3001/:path*",
       },
     ];
   },

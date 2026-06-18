@@ -5,6 +5,7 @@ const ORIG_ENV = { ...process.env }
 describe("config", () => {
   beforeEach(() => {
     process.env = { ...ORIG_ENV }
+    delete process.env.NODE_ENV
   })
 
   it("loads config with defaults when no env vars set", async () => {

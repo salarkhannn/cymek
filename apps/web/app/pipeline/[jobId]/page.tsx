@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
@@ -9,7 +9,7 @@ import { ScoreBar } from "../../../components/ui/ScoreBar";
 import { streamPipelineEvents, type SseEvent } from "../../../lib/api";
 
 interface PipelinePageProps {
-  params: Promise<{ jobId: string }>;
+  params: { jobId: string };
 }
 
 const STAGE_LABELS: Record<string, string> = {
@@ -23,8 +23,7 @@ const STAGE_LABELS: Record<string, string> = {
 
 function PipelineProgressPage({ params }: PipelinePageProps) {
   const router = useRouter();
-  const resolvedParams = use(params);
-  const jobId = resolvedParams.jobId;
+  const jobId = params.jobId;
 
   const [events, setEvents] = useState<SseEvent[]>([]);
   const [currentStage, setCurrentStage] = useState<string>("ingesting");
