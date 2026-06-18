@@ -22,16 +22,16 @@ describe("constants", () => {
     expect(EMBEDDING_DIMENSIONS).toBe(768)
   })
 
-  it("EMBEDDING_MODEL is nomic-embed-text", () => {
-    expect(EMBEDDING_MODEL).toBe("nomic-embed-text")
+  it("EMBEDDING_MODEL is text-embedding-3-small", () => {
+    expect(EMBEDDING_MODEL).toBe("text-embedding-3-small")
   })
 
-  it("CHAT_MODEL is llama3.2", () => {
-    expect(CHAT_MODEL).toBe("llama3.2")
+  it("CHAT_MODEL is gpt-4o-mini", () => {
+    expect(CHAT_MODEL).toBe("gpt-4o-mini")
   })
 
-  it("EVAL_MODEL is llama3.2", () => {
-    expect(EVAL_MODEL).toBe("llama3.2")
+  it("EVAL_MODEL is gpt-4o-mini", () => {
+    expect(EVAL_MODEL).toBe("gpt-4o-mini")
   })
 
   it("DEFAULT_CHUNK_SIZE is 512", () => {

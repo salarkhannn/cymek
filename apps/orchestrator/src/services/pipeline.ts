@@ -1,4 +1,4 @@
-import PgBoss from "pg-boss";
+import { PgBoss, type Job } from "pg-boss";
 import pino from "pino";
 import { eq, and, inArray } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
@@ -83,7 +83,7 @@ export function createPipelineService(
   }
 
   async function processPipeline(
-    job: PgBoss.Job<{ jobId: string; tenantId: string; config: PipelineConfig }>,
+    job: Job<{ jobId: string; tenantId: string; config: PipelineConfig }>,
   ) {
     const { jobId, tenantId, config } = job.data;
 

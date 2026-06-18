@@ -1,5 +1,6 @@
 import express from "express";
-import PgBoss from "pg-boss";
+import cookieParser from "cookie-parser";
+import { PgBoss, type Job } from "pg-boss";
 import pino from "pino";
 import { createConnection } from "@cymek/db";
 import { loadConfig } from "./config.js";
@@ -8,8 +9,12 @@ import { createEncryptionService } from "./services/encryption.js";
 import { createSidecarClient } from "./services/sidecar-client.js";
 import { createPipelineService } from "./services/pipeline.js";
 import { createChatService } from "./services/chat.js";
+import { createAuthService } from "./services/auth.js";
 import { pipelineRoutes } from "./routes/pipeline.js";
 import { chatRoutes } from "./routes/chat.js";
+import { uploadRoutes } from "./routes/upload.js";
+import { authRoutes } from "./routes/auth.js";
+import { requireAuth, optionalAuth } from "./middleware/auth.js";
 
 async function main() {
   const config = loadConfig();
@@ -27,9 +32,11 @@ async function main() {
   const db = createConnection(config.DATABASE_URL);
   const sidecar = createSidecarClient(config.SIDECAR_URL);
 
+  const authService = createAuthService(db, config);
+
   const pgBoss = new PgBoss(config.DATABASE_URL);
 
-  pgBoss.on("error", (err) => {
+  pgBoss.on("error", (err: Error) => {
     logger.error({ err }, "pg-boss error");
   });
 
@@ -43,7 +50,7 @@ async function main() {
   await pgBoss.work<{ jobId: string; tenantId: string; config: PipelineConfig }>(
     "pipeline-process",
     { batchSize: 1 },
-    async (jobs) => {
+    async (jobs: Job<{ jobId: string; tenantId: string; config: PipelineConfig }>[]) => {
       for (const job of jobs) {
         try {
           await pipeline.processPipeline(job);
@@ -61,13 +68,17 @@ async function main() {
 
   const app = express();
   app.use(express.json());
-
-  app.use(pipelineRoutes(db, pipeline, encryption, logger));
-  app.use(chatRoutes(chatService, logger));
+  app.use(cookieParser());
 
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  app.use(authRoutes(authService, config, logger, db));
+
+  app.use(requireAuth(authService), uploadRoutes(logger));
+  app.use(requireAuth(authService), pipelineRoutes(db, pipeline, encryption, logger));
+  app.use(optionalAuth(authService), chatRoutes(chatService, logger));
 
   app.use(
     (
@@ -96,7 +107,9 @@ async function main() {
   process.on("SIGTERM", shutdown);
 }
 
-main().catch((err) => {
-  console.error("Failed to start:", err);
-  process.exit(1);
-});
+if (!process.env.VITEST) {
+  main().catch((err) => {
+    console.error("Failed to start:", err);
+    process.exit(1);
+  });
+}

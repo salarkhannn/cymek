@@ -2,16 +2,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { EMBEDDING_MODEL } from "@cymek/shared"
 
 vi.mock("openai", () => {
-  const MockOpenAI = vi.fn(() => ({
-    embeddings: {
-      create: vi.fn(),
-    },
-    chat: {
-      completions: {
+  const MockOpenAI = vi.fn(function () {
+    return {
+      embeddings: {
         create: vi.fn(),
       },
-    },
-  }))
+      chat: {
+        completions: {
+          create: vi.fn(),
+        },
+      },
+    }
+  })
   return { default: MockOpenAI }
 })
 
@@ -26,10 +28,12 @@ describe("OpenAI service", () => {
       data: [{ embedding: [0.1, 0.2, 0.3] }],
       usage: { total_tokens: 5 },
     })
-    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      embeddings: { create: mockCreate },
-      chat: { completions: { create: vi.fn() } },
-    }))
+    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () {
+      return {
+        embeddings: { create: mockCreate },
+        chat: { completions: { create: vi.fn() } },
+      }
+    })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
     const openAI = createOpenAIService("sk-test")
@@ -39,6 +43,7 @@ describe("OpenAI service", () => {
     expect(mockCreate).toHaveBeenCalledWith({
       model: EMBEDDING_MODEL,
       input: "test text",
+      dimensions: 768,
     })
   })
 
@@ -60,10 +65,12 @@ describe("OpenAI service", () => {
         usage: { total_tokens: 50 },
       })
 
-    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      embeddings: { create: mockCreate },
-      chat: { completions: { create: vi.fn() } },
-    }))
+    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () {
+      return {
+        embeddings: { create: mockCreate },
+        chat: { completions: { create: vi.fn() } },
+      }
+    })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
     const openAI = createOpenAIService("sk-test")
@@ -79,10 +86,12 @@ describe("OpenAI service", () => {
       choices: [{ message: { content: "You are a helpful assistant for Cymek docs." } }],
       usage: { total_tokens: 100 },
     })
-    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      embeddings: { create: vi.fn() },
-      chat: { completions: { create: mockCreate } },
-    }))
+    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () {
+      return {
+        embeddings: { create: vi.fn() },
+        chat: { completions: { create: mockCreate } },
+      }
+    })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
     const openAI = createOpenAIService("sk-test")
@@ -101,10 +110,12 @@ describe("OpenAI service", () => {
       choices: [{ message: { content: "Regenerated assistant prompt." } }],
       usage: { total_tokens: 100 },
     })
-    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      embeddings: { create: vi.fn() },
-      chat: { completions: { create: mockCreate } },
-    }))
+    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () {
+      return {
+        embeddings: { create: vi.fn() },
+        chat: { completions: { create: mockCreate } },
+      }
+    })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
     const openAI = createOpenAIService("sk-test")
@@ -123,10 +134,12 @@ describe("OpenAI service", () => {
       choices: [{ message: { content: JSON.stringify({ faithfulness: 0.8, relevance: 0.9 }) } }],
       usage: { total_tokens: 200 },
     })
-    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      embeddings: { create: vi.fn() },
-      chat: { completions: { create: mockCreate } },
-    }))
+    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () {
+      return {
+        embeddings: { create: vi.fn() },
+        chat: { completions: { create: mockCreate } },
+      }
+    })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
     const openAI = createOpenAIService("sk-test")
@@ -141,10 +154,12 @@ describe("OpenAI service", () => {
       choices: [{ message: { content: JSON.stringify({ pairs: [{ question: "Q1", answer: "A1" }] }) } }],
       usage: { total_tokens: 100 },
     })
-    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      embeddings: { create: vi.fn() },
-      chat: { completions: { create: mockCreate } },
-    }))
+    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () {
+      return {
+        embeddings: { create: vi.fn() },
+        chat: { completions: { create: mockCreate } },
+      }
+    })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
     const openAI = createOpenAIService("sk-test")
@@ -159,10 +174,12 @@ describe("OpenAI service", () => {
       choices: [{ message: { content: "not json" } }],
       usage: { total_tokens: 50 },
     })
-    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      embeddings: { create: vi.fn() },
-      chat: { completions: { create: mockCreate } },
-    }))
+    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () {
+      return {
+        embeddings: { create: vi.fn() },
+        chat: { completions: { create: mockCreate } },
+      }
+    })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
     const openAI = createOpenAIService("sk-test")
@@ -182,10 +199,12 @@ describe("OpenAI service", () => {
       },
     }
     const mockCreate = vi.fn().mockResolvedValue(mockStream)
-    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      embeddings: { create: vi.fn() },
-      chat: { completions: { create: mockCreate } },
-    }))
+    ;(OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () {
+      return {
+        embeddings: { create: vi.fn() },
+        chat: { completions: { create: mockCreate } },
+      }
+    })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
     const openAI = createOpenAIService("sk-test")

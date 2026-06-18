@@ -1,3 +1,21 @@
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("cymek_token");
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const headers: Record<string, string> = {
+    ...authHeaders(),
+    ...(options.headers as Record<string, string> || {}),
+  };
+  return fetch(url, { ...options, headers });
+}
+
 export interface SseEvent {
   stage: "ingesting" | "chunking" | "embedding" | "prompt_gen" | "evaluating" | "deployed";
   progress?: number;
@@ -46,13 +64,34 @@ export interface PipelineResult {
   jobId: string;
 }
 
+export async function uploadFiles(
+  files: File[],
+  onProgress?: (percent: number) => void,
+): Promise<string[]> {
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append("files", file);
+  }
+
+  const res = await apiFetch("/api/upload", {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Upload failed" }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return data.files as string[];
+}
+
 export async function createPipeline(
   apiKey: string,
   useCase: string,
   targetUser: string,
   config: PipelineConfig,
 ): Promise<PipelineResult> {
-  const res = await fetch("/api/pipeline", {
+  const res = await apiFetch("/api/pipeline", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ apiKey, useCase, targetUser, ...config }),
@@ -65,7 +104,7 @@ export async function createPipeline(
 }
 
 export async function getTenant(tenantId: string): Promise<TenantInfo> {
-  const res = await fetch(`/api/tenant/${tenantId}`);
+  const res = await apiFetch(`/api/tenant/${tenantId}`);
   if (!res.ok) {
     if (res.status === 404) throw new Error("Tenant not found");
     throw new Error(`HTTP ${res.status}`);
@@ -74,7 +113,7 @@ export async function getTenant(tenantId: string): Promise<TenantInfo> {
 }
 
 export async function getJobs(tenantId: string): Promise<Record<string, unknown>[]> {
-  const res = await fetch(`/api/pipeline/jobs?tenantId=${encodeURIComponent(tenantId)}`);
+  const res = await apiFetch(`/api/pipeline/jobs?tenantId=${encodeURIComponent(tenantId)}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   return Array.isArray(data) ? data : [];
@@ -83,7 +122,7 @@ export async function getJobs(tenantId: string): Promise<Record<string, unknown>
 export async function getPipeline(
   jobId: string,
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(`/api/pipeline/${jobId}`);
+  const res = await apiFetch(`/api/pipeline/${jobId}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -96,7 +135,7 @@ export function streamPipelineEvents(
 ): AbortController {
   const controller = new AbortController();
 
-  fetch(`/api/pipeline/stream/${jobId}`, {
+  apiFetch(`/api/pipeline/stream/${jobId}`, {
     signal: controller.signal,
   })
     .then(async (response) => {
@@ -149,7 +188,7 @@ export async function sendChatMessage(
   message: string,
   sessionId?: string,
 ): Promise<{ answer: string; sessionId: string; chunks: string[] }> {
-  const res = await fetch(`/api/chat/${tenantId}`, {
+  const res = await apiFetch(`/api/chat/${tenantId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, sessionId }),
@@ -168,7 +207,7 @@ export function streamChatResponse(
 ): AbortController {
   const controller = new AbortController();
 
-  fetch(`/api/chat/${tenantId}`, {
+  apiFetch(`/api/chat/${tenantId}`, {
     method: "POST",
     signal: controller.signal,
     headers: {

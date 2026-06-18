@@ -5,3 +5,5 @@ export * from "./chunks";
 export * from "./system-prompts";
 export * from "./eval-results";
 export * from "./chat-logs";
+export * from "./users";
+export * from "./sessions";

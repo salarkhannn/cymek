@@ -7,7 +7,8 @@ import { TextInput } from "../../components/ui/TextInput";
 import { TextArea } from "../../components/ui/TextArea";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
-import { createPipeline } from "../../lib/api";
+import { FileUpload, type UploadFileItem } from "../../components/ui/FileUpload";
+import { createPipeline, uploadFiles } from "../../lib/api";
 
 type Step = "api-key" | "use-case" | "target-user" | "documents";
 
@@ -27,6 +28,12 @@ interface FormData {
   urls: string[];
 }
 
+let fileIdCounter = 0;
+function nextFileId(): string {
+  fileIdCounter += 1;
+  return `file-${fileIdCounter}-${Date.now()}`;
+}
+
 function OnboardPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("api-key");
@@ -36,6 +43,7 @@ function OnboardPage() {
     targetUser: "",
     urls: [""],
   });
+  const [uploadFilesList, setUploadFilesList] = useState<UploadFileItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,6 +68,19 @@ function OnboardPage() {
     updateField("urls", form.urls.filter((_, i) => i !== index));
   }
 
+  function handleAddFiles(files: File[]) {
+    const items: UploadFileItem[] = files.map((file) => ({
+      id: nextFileId(),
+      file,
+      status: "pending" as const,
+    }));
+    setUploadFilesList((prev) => [...prev, ...items]);
+  }
+
+  function handleRemoveFile(id: string) {
+    setUploadFilesList((prev) => prev.filter((f) => f.id !== id));
+  }
+
   function canProceed(): boolean {
     switch (step) {
       case "api-key":
@@ -69,31 +90,58 @@ function OnboardPage() {
       case "target-user":
         return form.targetUser.trim().length > 0;
       case "documents":
-        return form.urls.some((u) => u.trim().length > 0);
+        return form.urls.some((u) => u.trim().length > 0) || uploadFilesList.length > 0;
     }
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (isLastStep) {
-      setSubmitting(true);
-      setError(null);
-      try {
-        const validUrls = form.urls.filter((u) => u.trim().length > 0);
-        const { tenantId, jobId } = await createPipeline(
-          form.apiKey,
-          form.useCase,
-          form.targetUser,
-          { urls: validUrls },
-        );
-        localStorage.setItem("cymek_tenant", tenantId);
-        router.push(`/pipeline/${jobId}`);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to create pipeline");
-        setSubmitting(false);
-      }
-    } else {
+    if (!isLastStep) {
       setStep(STEP_ORDER[stepIndex + 1]);
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const validUrls = form.urls.filter((u) => u.trim().length > 0);
+      const pendingFiles = uploadFilesList.filter((f) => f.status === "pending");
+
+      let filePaths: string[] = [];
+
+      if (pendingFiles.length > 0) {
+        setUploadFilesList((prev) =>
+          prev.map((f) =>
+            f.status === "pending" ? { ...f, status: "uploading" as const } : f,
+          ),
+        );
+
+        filePaths = await uploadFiles(pendingFiles.map((f) => f.file));
+
+        setUploadFilesList((prev) =>
+          prev.map((f) =>
+            f.status === "uploading" ? { ...f, status: "done" as const } : f,
+          ),
+        );
+      }
+
+      const { tenantId, jobId } = await createPipeline(
+        form.apiKey,
+        form.useCase,
+        form.targetUser,
+        { urls: validUrls, files: filePaths },
+      );
+      localStorage.setItem("cymek_tenant", tenantId);
+      router.push(`/pipeline/${jobId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create pipeline");
+      setUploadFilesList((prev) =>
+        prev.map((f) =>
+          f.status === "uploading" ? { ...f, status: "error" as const, error: "Upload failed" } : f,
+        ),
+      );
+      setSubmitting(false);
     }
   }
 
@@ -102,6 +150,14 @@ function OnboardPage() {
       setStep(STEP_ORDER[stepIndex - 1]);
     }
   }
+
+  const submitLabel = (() => {
+    if (!isLastStep) return "Continue";
+    const pending = uploadFilesList.filter((f) => f.status === "pending").length;
+    if (pending > 0 && submitting) return "Uploading files...";
+    if (submitting) return "Starting pipeline...";
+    return "Start Pipeline";
+  })();
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-section">
@@ -188,32 +244,44 @@ function OnboardPage() {
           )}
 
           {step === "documents" && (
-            <div className="flex flex-col gap-2">
-              <h2 className="text-h4 text-ink">Add your documents</h2>
-              <p className="text-body-sm text-steel mb-2">
-                Enter URLs to your documentation or data sources.
-              </p>
-              <div className="flex flex-col gap-3">
-                {form.urls.map((url, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <TextInput
-                        placeholder="https://docs.example.com/page"
-                        value={url}
-                        onChange={(e) => updateUrl(index, e.target.value)}
-                      />
+            <div className="flex flex-col gap-6">
+              <div>
+                <h2 className="text-h4 text-ink mb-2">Upload your documents</h2>
+                <p className="text-body-sm text-steel mb-4">
+                  Upload files or add URLs to your documentation or data sources.
+                </p>
+                <FileUpload
+                  files={uploadFilesList}
+                  onAdd={handleAddFiles}
+                  onRemove={handleRemoveFile}
+                  disabled={submitting}
+                />
+              </div>
+
+              <div className="border-t border-beige-deep pt-4">
+                <p className="text-body-sm-medium text-ink mb-3">Or add document URLs</p>
+                <div className="flex flex-col gap-3">
+                  {form.urls.map((url, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <TextInput
+                          placeholder="https://docs.example.com/page"
+                          value={url}
+                          onChange={(e) => updateUrl(index, e.target.value)}
+                        />
+                      </div>
+                      {form.urls.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeUrl(index)}
+                          className="text-body-sm text-error hover:text-error/80 mt-6"
+                        >
+                          Remove
+                        </button>
+                      )}
                     </div>
-                    {form.urls.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeUrl(index)}
-                        className="text-body-sm text-error hover:text-error/80 mt-6"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -238,11 +306,7 @@ function OnboardPage() {
               variant="primary"
               disabled={!canProceed() || submitting}
             >
-              {submitting
-                ? "Creating..."
-                : isLastStep
-                  ? "Start Pipeline"
-                  : "Continue"}
+              {submitLabel}
             </Button>
           </div>
         </form>

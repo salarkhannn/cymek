@@ -98,6 +98,7 @@ export function pipelineRoutes(
           targetUser: targetUser ?? null,
           apiKeyEncrypted: encrypted,
           apiKeyNonce: nonce,
+          userId: req.user?.id ?? null,
         });
         const [created] = await db
           .select({ id: schema.tenants.id })
@@ -122,19 +123,6 @@ export function pipelineRoutes(
     }
   });
 
-  router.get("/pipeline/:jobId", async (req, res, next) => {
-    try {
-      const job = await pipeline.getJobId(req.params.jobId);
-      if (!job) {
-        res.status(404).json({ error: "Job not found" });
-        return;
-      }
-      res.json(job);
-    } catch (err) {
-      next(err);
-    }
-  });
-
   router.get("/pipeline/jobs", async (req, res, next) => {
     try {
       const { tenantId } = req.query;
@@ -148,6 +136,19 @@ export function pipelineRoutes(
         .where(eq(schema.jobs.tenantId, tenantId))
         .orderBy(desc(schema.jobs.createdAt));
       res.json(jobs);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get("/pipeline/:jobId", async (req, res, next) => {
+    try {
+      const job = await pipeline.getJobId(req.params.jobId);
+      if (!job) {
+        res.status(404).json({ error: "Job not found" });
+        return;
+      }
+      res.json(job);
     } catch (err) {
       next(err);
     }

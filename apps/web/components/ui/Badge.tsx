@@ -19,7 +19,7 @@ function Badge({ variant = "primary", children, className }: BadgeProps) {
   return (
     <span
       className={twMerge(
-        "inline-flex items-center rounded-full px-[10px] py-[4px] text-caption-bold",
+        "inline-flex items-center rounded-full px-xs py-xxs text-caption-bold",
         variantStyles[variant],
         className,
       )}

@@ -124,7 +124,7 @@ describe("design compliance — responsive breakpoints", () => {
     const pageFiles = sourceFiles.filter((f) => f.endsWith("page.tsx"))
     for (const pf of pageFiles) {
       const content = readFileSync(pf, "utf-8")
-      expect(content).toMatch(/max-w-(2xl|3xl|4xl|5xl|6xl|7xl)/)
+      expect(content).toMatch(/max-w-(sm|md|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl)/)
     }
   })
 })

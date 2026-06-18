@@ -39,3 +39,6 @@ export type { TwilightStripeProps } from "./TwilightStripe";
 
 export { HeroBand } from "./HeroBand";
 export type { HeroBandProps } from "./HeroBand";
+
+export { FileUpload } from "./FileUpload";
+export type { FileUploadProps, UploadFileItem } from "./FileUpload";
