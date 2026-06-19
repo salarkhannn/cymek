@@ -56,21 +56,17 @@ describe("design compliance — twilight stripe", () => {
     expect(content).toMatch(/gradient/)
   })
 
-  it("Footer includes TwilightStripe", () => {
-    const footerPath = componentFiles.find((f) => f.endsWith("/Footer.tsx"))
-    expect(footerPath).toBeDefined()
-    const content = readFileSync(footerPath!, "utf-8")
-    expect(content).toMatch(/TwilightStripe/)
-  })
+  it("Footer component has been removed", () => {
+    const footerPath = componentFiles.find((f) => f.endsWith("/Footer.tsx"));
+    expect(footerPath).toBeUndefined();
+  });
 
-  it("Root layout imports Footer (and thus twilight stripe on every page)", () => {
-    const layoutPath = sourceFiles.find((f) => f.endsWith("/layout.tsx"))
-    expect(layoutPath).toBeDefined()
-    const content = readFileSync(layoutPath!, "utf-8")
-    expect(content).toMatch(/Footer/)
-    expect(content).toMatch(/components\/layout\/Footer/)
-    expect(content).toMatch(/<Footer\s*\/>/)
-  })
+  it("Root layout does not render Footer", () => {
+    const layoutPath = sourceFiles.find((f) => f.endsWith("/layout.tsx"));
+    expect(layoutPath).toBeDefined();
+    const content = readFileSync(layoutPath!, "utf-8");
+    expect(content).not.toMatch(/<Footer\s*\/>/);
+  });
 })
 
 describe("design compliance — typography", () => {

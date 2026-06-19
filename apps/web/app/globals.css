@@ -1,52 +1,49 @@
 @import "tailwindcss";
 
 @theme {
-  /* Colors — Twilight Design System */
-  --color-primary: #7c5cfc;
-  --color-primary-deep: #5c3dd9;
+  --color-primary: #000000;
+  --color-primary-deep: #000000;
   --color-on-primary: #ffffff;
-  --color-twilight-300: #c4b5fd;
-  --color-twilight-500: #a78bfa;
-  --color-twilight-700: #7c5cfc;
-  --color-twilight-800: #6366f1;
-  --color-twilight-900: #4f46e5;
-  --color-blue-saturated: #4f8cf7;
-  --color-cream: #fff8e0;
-  --color-cream-light: #fffaeb;
-  --color-cream-deeper: #fff0c2;
-  --color-beige-deep: #e6d5a8;
+  --color-twilight-300: #e5e5e5;
+  --color-twilight-500: #737373;
+  --color-twilight-700: #000000;
+  --color-twilight-800: #000000;
+  --color-twilight-900: #000000;
+  --color-blue-saturated: #000000;
+  --color-cream: #ffffff;
+  --color-cream-light: #ffffff;
+  --color-cream-deeper: #e5e5e5;
+  --color-beige-deep: #737373;
 
-  /* Ink / Surface */
-  --color-ink: #1f1f1f;
-  --color-ink-tint: #3d3d3d;
-  --color-charcoal: #2c2c2c;
-  --color-slate: #4a4a4a;
-  --color-steel: #6a6a6a;
-  --color-stone: #8a8a8a;
-  --color-muted: #a8a8a8;
+  --color-ink: #000000;
+  --color-ink-tint: #000000;
+  --color-charcoal: #000000;
+  --color-slate: #000000;
+  --color-steel: #000000;
+  --color-stone: #525252;
+  --color-muted: #737373;
   --color-hairline: #e5e5e5;
-  --color-hairline-soft: #ededed;
-  --color-hairline-strong: #c7c7c7;
+  --color-hairline-soft: #f5f5f5;
+  --color-hairline-strong: #737373;
   --color-canvas: #ffffff;
-  --color-surface: #fafafa;
-  --color-surface-cream: #fff8e0;
-  --color-surface-cream-soft: #fffaeb;
-  --color-surface-code: #1c1c1e;
+  --color-surface: #ffffff;
+  --color-surface-cream: #ffffff;
+  --color-surface-cream-soft: #fafafa;
+  --color-surface-code: #000000;
   --color-on-dark: #ffffff;
-  --color-on-dark-muted: #a8a8a8;
-  --color-on-cream: #1f1f1f;
-  --color-footer-cream: #fff8e0;
-  --color-link: #7c5cfc;
-  --color-success: #22C55E;
-  --color-warning: #F59E0B;
-  --color-error: #EF4444;
+  --color-on-dark-muted: #a3a3a3;
+  --color-on-cream: #000000;
+  --color-footer-cream: #ffffff;
+  --color-link: #000000;
+  --color-success: #000000;
+  --color-warning: #000000;
+  --color-error: #000000;
 
-  /* Semantic aliases for page-level use */
-  --color-neutral: #fbfbf8;
-  --color-secondary: #4b5563;
-  --color-tertiary: #e5e7eb;
-  --color-on-surface: #1f1f1f;
-  --color-border: #e5e7eb;
+  --color-neutral: #ffffff;
+  --color-secondary: #000000;
+  --color-tertiary: #e5e5e5;
+  --color-on-surface: #000000;
+  --color-border: #e5e5e5;
 
   /* Fonts */
   --font-display: var(--font-display), "PP Editorial Old", serif;

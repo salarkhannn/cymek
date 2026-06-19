@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useUser, SignUpButton } from "@clerk/nextjs";
-import { Button } from "../components/ui/Button";
+import { useUser } from "@clerk/nextjs";
+import { Plus, ArrowRight, Paperclip } from "@phosphor-icons/react";
 
 type ExtractionResult = {
   useCase: string | null;
@@ -11,18 +11,37 @@ type ExtractionResult = {
   missingInfo: string[];
 };
 
+type AttachedFile = {
+  id: string;
+  file: File;
+  status: "pending" | "uploading" | "done" | "error";
+};
+
 export default function HomePage() {
   const { isSignedIn, isLoaded } = useUser();
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
-  const [urls, setUrls] = useState<string[]>([]);
-  const [showAddPanel, setShowAddPanel] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [processingStored, setProcessingStored] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const urlInputRef = useRef<HTMLInputElement>(null);
 
-  const handleProcessPrompt = useCallback(async (text: string, storedUrls?: string[]) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const plusMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(event.target as Node)) {
+        setShowPlusMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleProcessPrompt = useCallback(async (text: string) => {
     setSubmitting(true);
     setProcessingStored(true);
 
@@ -39,10 +58,6 @@ export default function HomePage() {
       if (res.ok) {
         extracted = await res.json();
         localStorage.setItem("cymek_extracted", JSON.stringify(extracted));
-      }
-
-      if (storedUrls && storedUrls.length > 0) {
-        localStorage.setItem("cymek_urls", JSON.stringify(storedUrls));
       }
 
       if (extracted && extracted.missingInfo && extracted.missingInfo.length === 0) {
@@ -64,33 +79,79 @@ export default function HomePage() {
 
     const storedPrompt = localStorage.getItem("cymek_prompt");
     if (storedPrompt && isSignedIn) {
-      const storedUrlsRaw = localStorage.getItem("cymek_urls");
-      const storedUrls = storedUrlsRaw ? JSON.parse(storedUrlsRaw) as string[] : undefined;
       setPrompt(storedPrompt);
-      handleProcessPrompt(storedPrompt, storedUrls);
+      handleProcessPrompt(storedPrompt);
     }
   }, [isLoaded, isSignedIn, handleProcessPrompt, processingStored]);
 
-  const handleSubmit = async () => {
-    if (!prompt.trim() || submitting) return;
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
 
-    if (!isSignedIn) {
-      localStorage.setItem("cymek_prompt", prompt);
-      if (urls.length > 0) {
-        localStorage.setItem("cymek_urls", JSON.stringify(urls));
-      }
-      await router.push("/sign-in");
-      return;
-    }
+    const allowedExtensions = [".pdf", ".md", ".docx", ".txt"];
+    const validFiles = files.filter((file) => {
+      const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+      return allowedExtensions.includes(ext);
+    });
 
-    await handleProcessPrompt(prompt);
+    const newItems = validFiles.map((file) => ({
+      id: `file-${Date.now()}-${Math.random()}`,
+      file,
+      status: "pending" as const,
+    }));
+
+    setAttachedFiles((prev) => [...prev, ...newItems]);
+    e.target.value = "";
   };
 
-  const handleAddUrl = () => {
-    const input = urlInputRef.current;
-    if (input && input.value.trim()) {
-      setUrls((prev) => [...prev, input.value.trim()]);
-      input.value = "";
+  const removeAttachedFile = (id: string) => {
+    setAttachedFiles((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const handleSubmit = async () => {
+    if ((!prompt.trim() && attachedFiles.length === 0) || submitting) return;
+
+    setSubmitting(true);
+    try {
+      let filePaths: string[] = [];
+      const filesToUpload = attachedFiles.filter((f) => f.status === "pending");
+
+      if (filesToUpload.length > 0) {
+        setAttachedFiles((prev) =>
+          prev.map((f) => (f.status === "pending" ? { ...f, status: "uploading" as const } : f)),
+        );
+
+        const { uploadFiles } = await import("../lib/api");
+        const paths = await uploadFiles(filesToUpload.map((f) => f.file));
+        filePaths = paths;
+
+        setAttachedFiles((prev) =>
+          prev.map((f) => (f.status === "uploading" ? { ...f, status: "done" as const } : f)),
+        );
+      }
+
+      localStorage.setItem("cymek_prompt", prompt);
+
+      const fileData = attachedFiles.map((f, i) => ({
+        filename: f.file.name,
+        size: f.file.size,
+        path: filePaths[i] || "",
+      }));
+      localStorage.setItem("cymek_files", JSON.stringify(fileData));
+
+      if (!isSignedIn) {
+        await router.push("/sign-in");
+        return;
+      }
+
+      await handleProcessPrompt(prompt);
+    } catch (err) {
+      console.error("Submission failed:", err);
+      setAttachedFiles((prev) =>
+        prev.map((f) => (f.status === "uploading" ? { ...f, status: "error" as const } : f)),
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -100,120 +161,106 @@ export default function HomePage() {
         <div className="mx-auto w-full max-w-4xl text-center">
           <div className="mb-12 space-y-6">
             <h1 className="text-[48px] font-bold leading-[1.05] tracking-[-0.02em] text-primary">
-              Your AI Pipeline, <br/>
+              Your AI Pipeline, <br />
               One Prompt Away
             </h1>
             <p className="font-mono text-[16px] leading-[24px] text-secondary mx-auto max-w-2xl">
-              Describe what you want to build. Cymek extracts your use case,
-              sets up the pipeline, and deploys a production-ready AI endpoint — no engineering needed.
+              Describe what you want to build. Cymek extracts your use case, sets up the pipeline, and
+              deploys a production-ready AI endpoint — no engineering needed.
             </p>
           </div>
 
           <div className="mx-auto w-full max-w-3xl">
-            <div className="group relative">
-              <div className="relative flex min-h-[88px] items-center gap-4 rounded-md border border-border bg-surface p-4 transition-colors focus-within:border-primary">
-                <button
-                  onClick={() => setShowAddPanel(!showAddPanel)}
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm text-[23px] text-primary transition-colors hover:bg-tertiary"
-                  title="Add files, etc for the pipeline"
-                >
-                  +
-                </button>
-                <div className="flex-1 py-2">
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSubmit();
-                      }
-                    }}
-                    placeholder="Describe your AI use case..."
-                    className="h-12 w-full resize-none bg-transparent text-[16px] leading-[24px] text-primary outline-none placeholder:text-secondary flex items-center pt-3"
-                  />
+            <div className="relative flex flex-col rounded-md border border-border bg-canvas p-4 focus-within:border-primary transition-all">
+              {attachedFiles.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {attachedFiles.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-1.5 rounded-full bg-tertiary border border-border px-3 py-1 text-[13px] text-primary"
+                    >
+                      <Paperclip size={14} className="shrink-0" />
+                      <span className="truncate max-w-[150px]">{item.file.name}</span>
+                      {item.status === "uploading" && (
+                        <span className="text-[10px] text-secondary font-mono">(uploading...)</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeAttachedFile(item.id)}
+                        className="text-secondary hover:text-primary transition-colors ml-1 cursor-pointer font-bold"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                <button
-                  onClick={handleSubmit}
-                  disabled={!prompt.trim() || submitting}
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm bg-surface text-primary border border-border transition-colors hover:bg-tertiary hover:border-secondary disabled:opacity-40"
-                  title="Send prompt"
-                >
-                  {submitting ? (
-                    <span className="font-mono text-[12px] uppercase">Wait</span>
-                  ) : (
-                    <span className="text-[23px]">&rarr;</span>
-                  )}
-                </button>
-              </div>
-            </div>
+              )}
 
-            {/* Helper text matching wireframe context */}
-            <div className="mt-4 flex items-center justify-between px-2 font-mono text-[12px] leading-[16px] tracking-[0.02em] text-secondary">
-              <span className="flex items-center gap-2">
-                <span className="h-[1px] w-4 bg-tertiary" />
-                Add files or URLs for context
-              </span>
-              <span className="flex items-center gap-2">
-                Sign in to save and process
-                <span className="h-[1px] w-4 bg-tertiary" />
-              </span>
-            </div>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit();
+                  }
+                }}
+                placeholder="Describe your AI use case..."
+                className="w-full resize-none bg-transparent text-[16px] leading-[24px] text-primary outline-none placeholder:text-secondary min-h-[80px]"
+              />
 
-            {/* URLs Panel */}
-            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${showAddPanel ? 'mt-6 max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
-              <div className="rounded-lg border border-border bg-neutral p-4 text-left">
-                <div className="flex flex-col gap-4">
-                  <p className="text-[14px] font-medium leading-[20px] text-primary">Add document URLs for your pipeline</p>
-                  <div className="flex gap-3">
-                    <input
-                      ref={urlInputRef}
-                      type="url"
-                      placeholder="https://docs.example.com/page"
-                      className="h-12 flex-1 rounded-md border border-border bg-surface px-3 text-[16px] text-primary outline-none transition-colors focus:border-primary"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleAddUrl();
-                      }}
-                    />
-                    <Button variant="secondary" onClick={handleAddUrl} className="h-12 px-6 rounded-md border-border">
-                      Add
-                    </Button>
-                  </div>
-                  {urls.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {urls.map((url, i) => (
-                        <span
-                          key={i}
-                          className="flex items-center gap-2 rounded-full bg-surface px-3 py-1 font-mono text-[12px] text-primary border border-border"
-                        >
-                          {url}
-                          <button
-                            onClick={() => setUrls((prev) => prev.filter((_, j) => j !== i))}
-                            className="text-secondary transition-colors hover:text-error ml-1"
-                          >
-                            &times;
-                          </button>
-                        </span>
-                      ))}
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
+                <div className="relative" ref={plusMenuRef}>
+                  <button
+                    onClick={() => setShowPlusMenu(!showPlusMenu)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-canvas text-primary hover:bg-tertiary hover:border-primary transition-all cursor-pointer"
+                    type="button"
+                    title="Add attachment"
+                  >
+                    <Plus size={16} />
+                  </button>
+
+                  {showPlusMenu && (
+                    <div className="absolute bottom-10 left-0 z-50 w-[160px] rounded-lg border border-border bg-canvas py-1 shadow-sm">
+                      <button
+                        onClick={() => {
+                          setShowPlusMenu(false);
+                          fileInputRef.current?.click();
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-[14px] text-primary hover:bg-tertiary transition-colors cursor-pointer"
+                        type="button"
+                      >
+                        <Paperclip size={16} />
+                        <span>Attach files</span>
+                      </button>
                     </div>
                   )}
                 </div>
+
+                <button
+                  onClick={handleSubmit}
+                  disabled={(!prompt.trim() && attachedFiles.length === 0) || submitting}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-canvas text-primary hover:border-primary disabled:opacity-40 disabled:hover:border-border transition-all cursor-pointer"
+                  type="button"
+                  title="Send prompt"
+                >
+                  {submitting ? (
+                    <span className="text-[10px] font-mono">...</span>
+                  ) : (
+                    <ArrowRight size={16} />
+                  )}
+                </button>
               </div>
             </div>
 
-            {/* Selected URLs Pills (when panel is closed) */}
-            {urls.length > 0 && !showAddPanel && (
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
-                {urls.map((url, i) => (
-                  <span
-                    key={i}
-                    className="rounded-full bg-surface border border-border px-3 py-1 font-mono text-[12px] text-primary"
-                  >
-                    {url}
-                  </span>
-                ))}
-              </div>
-            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.docx,.txt,.md"
+              onChange={handleFileChange}
+              className="hidden"
+            />
           </div>
         </div>
       </section>

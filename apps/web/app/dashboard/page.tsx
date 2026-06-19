@@ -235,7 +235,7 @@ function DashboardPage() {
                           job.status === "completed"
                             ? job.warning ? "cream" : "primary"
                             : job.status === "failed"
-                              ? "primary"
+                              ? "error"
                               : "cream"
                         }
                       >

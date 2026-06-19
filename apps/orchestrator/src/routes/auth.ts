@@ -1,5 +1,5 @@
 import { Router, type Request } from "express";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "@cymek/db/schema";
 import type { AuthService } from "../services/auth.js";
@@ -127,17 +127,13 @@ export function authRoutes(auth: AuthService, config: Config, logger: pino.Logge
 
   router.get("/auth/tenants", (req, res, next) => {
     const user = resolveUser(req);
-    if (!user) {
-      res.status(401).json({ error: "Not authenticated" });
-      return;
-    }
 
     if (!db) {
       res.json({ tenants: [] });
       return;
     }
 
-    db
+    const query = db
       .select({
         id: schema.tenants.id,
         name: schema.tenants.name,
@@ -146,9 +142,12 @@ export function authRoutes(auth: AuthService, config: Config, logger: pino.Logge
         createdAt: schema.tenants.createdAt,
         updatedAt: schema.tenants.updatedAt,
       })
-      .from(schema.tenants)
-      .where(eq(schema.tenants.userId, user.id))
-      .orderBy(schema.tenants.createdAt)
+      .from(schema.tenants);
+
+    const condition = user ? eq(schema.tenants.userId, user.id) : undefined;
+
+    (condition ? query.where(condition) : query)
+      .orderBy(desc(schema.tenants.createdAt))
       .then((tenants) => {
         res.json({ tenants });
       })

@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
 
-type BadgeVariant = "primary" | "cream" | "dark";
+type BadgeVariant = "primary" | "cream" | "dark" | "error";
 
 interface BadgeProps {
   variant?: BadgeVariant;
@@ -13,6 +13,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   primary: "bg-primary text-on-primary",
   cream: "bg-cream-deeper text-ink",
   dark: "bg-ink text-on-dark",
+  error: "bg-error text-on-primary",
 };
 
 function Badge({ variant = "primary", children, className }: BadgeProps) {

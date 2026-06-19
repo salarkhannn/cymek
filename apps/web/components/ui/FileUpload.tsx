@@ -5,7 +5,10 @@ import { twMerge } from "tailwind-merge";
 
 export interface UploadFileItem {
   id: string;
-  file: File;
+  file?: File;
+  filename?: string;
+  path?: string;
+  size?: number;
   status: "pending" | "uploading" | "done" | "error";
   error?: string;
 }
@@ -162,8 +165,10 @@ function FileUpload({
             >
               <FileIcon />
               <div className="min-w-0 flex-1">
-                <p className="text-body-sm text-ink truncate">{item.file.name}</p>
-                <p className="text-micro text-steel">{formatSize(item.file.size)}</p>
+                <p className="text-body-sm text-ink truncate">{item.file?.name || item.filename || "unknown"}</p>
+                <p className="text-micro text-steel">
+                  {item.file ? formatSize(item.file.size) : item.size ? formatSize(item.size) : ""}
+                </p>
               </div>
               {item.status === "done" && (
                 <span className="text-micro text-success">Uploaded</span>
@@ -181,7 +186,7 @@ function FileUpload({
                 onClick={() => onRemove(item.id)}
                 disabled={disabled}
                 className="flex h-6 w-6 items-center justify-center rounded text-muted hover:text-error hover:bg-error/5 transition-colors disabled:opacity-30"
-                aria-label={`Remove ${item.file.name}`}
+                aria-label={`Remove ${item.file?.name || item.filename || "file"}`}
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                   <path d="M3 3L11 11M11 3L3 11" />
