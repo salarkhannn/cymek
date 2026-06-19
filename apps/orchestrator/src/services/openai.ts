@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import OpenAI, { RateLimitError, APIError } from "openai";
 import {
   EMBEDDING_MODEL,
   CHAT_MODEL,
@@ -8,26 +8,82 @@ import {
   RANDOM_SAMPLE_COUNT,
 } from "@cymek/shared";
 
+function extractRateLimitMessage(err: RateLimitError | APIError): string {
+  const raw = (err as any).error?.metadata?.raw;
+  if (typeof raw === "string" && raw.length > 0) return raw;
+  const apiMessage = (err as APIError).message;
+  if (apiMessage && !apiMessage.includes("Provider returned error")) return apiMessage;
+  return "Your API provider is rate-limiting requests. Please wait and try again, or use a paid tier for higher limits.";
+}
+
+async function withRateLimitCheck<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      throw new Error(extractRateLimitMessage(err));
+    }
+    if (err instanceof APIError && err.status === 429) {
+      throw new Error(extractRateLimitMessage(err));
+    }
+    throw err;
+  }
+}
+
 export function createOpenAIService(apiKey: string, baseURL?: string) {
-  const client = new OpenAI({ apiKey, baseURL });
+  let resolvedBaseURL = baseURL;
+  let embeddingModel = EMBEDDING_MODEL;
+  let chatModel = CHAT_MODEL;
+  let evalModel = EVAL_MODEL;
+
+  const isRealOpenAI = apiKey.startsWith("sk-proj-") || (apiKey.startsWith("sk-") && !apiKey.startsWith("sk-or-") && apiKey.length > 20);
+  const isOpenRouter = apiKey.startsWith("sk-or-");
+  const isGemini = apiKey.startsWith("AIzaSy") || apiKey.startsWith("AQ.");
+
+  if (isRealOpenAI) {
+    resolvedBaseURL = "https://api.openai.com/v1";
+    embeddingModel = "text-embedding-3-small";
+    chatModel = "gpt-4o-mini";
+    evalModel = "gpt-4o-mini";
+  } else if (isOpenRouter) {
+    resolvedBaseURL = "https://openrouter.ai/api/v1";
+    embeddingModel = "openai/text-embedding-3-small";
+    chatModel = "meta-llama/llama-3.3-70b-instruct:free";
+    evalModel = "meta-llama/llama-3.3-70b-instruct:free";
+  } else if (isGemini) {
+    resolvedBaseURL = "https://generativelanguage.googleapis.com/v1beta/openai/";
+    embeddingModel = "gemini-embedding-001";
+    chatModel = "gemini-2.5-flash";
+    evalModel = "gemini-2.5-flash";
+  }
+
+  if (!resolvedBaseURL) {
+    throw new Error("No API base URL configured. Set OPENAI_BASE_URL in your environment or use a recognized API key (OpenAI, OpenRouter, Gemini).");
+  }
+
+  const client = new OpenAI({ apiKey, baseURL: resolvedBaseURL });
 
   async function createEmbedding(input: string): Promise<number[]> {
+    return withRateLimitCheck(async () => {
       const response = await client.embeddings.create({
-        model: EMBEDDING_MODEL,
+        model: embeddingModel,
         input,
         dimensions: EMBEDDING_DIMENSIONS,
       });
-    return response.data[0].embedding;
+      return response.data[0].embedding;
+    });
   }
 
   async function createEmbeddingsBatch(inputs: string[]): Promise<number[][]> {
     const results: number[][] = [];
     for (let i = 0; i < inputs.length; i += EMBEDDING_BATCH_SIZE) {
       const batch = inputs.slice(i, i + EMBEDDING_BATCH_SIZE);
-      const response = await client.embeddings.create({
-        model: EMBEDDING_MODEL,
-        input: batch,
-        dimensions: EMBEDDING_DIMENSIONS,
+      const response = await withRateLimitCheck(async () => {
+        return client.embeddings.create({
+          model: embeddingModel,
+          input: batch,
+          dimensions: EMBEDDING_DIMENSIONS,
+        });
       });
       const sorted = response.data.sort((a, b) => a.index - b.index);
       for (const item of sorted) {
@@ -61,14 +117,15 @@ Write a system prompt (2-3 paragraphs) that:
 
 The output should read like a human wrote it for this specific business case — not a template or fill-in-the-blank. Do not include any meta-instructions about being a system prompt generator. Write as if you are the final system prompt.`;
 
-    const response = await client.chat.completions.create({
-      model: CHAT_MODEL,
-      messages: [{ role: "user", content: metaPrompt }],
-      temperature: 0.7,
-      max_tokens: 500,
+    return withRateLimitCheck(async () => {
+      const response = await client.chat.completions.create({
+        model: chatModel,
+        messages: [{ role: "user", content: metaPrompt }],
+        temperature: 0.7,
+        max_tokens: 500,
+      });
+      return response.choices[0].message.content ?? "";
     });
-
-    return response.choices[0].message.content ?? "";
   }
 
   async function regenerateSystemPrompt(
@@ -95,14 +152,15 @@ Write a system prompt (2-3 paragraphs) that:
 
 The output should read like a human wrote it for this specific business case. Be creative and thorough. Do not include any meta-instructions about being a system prompt generator.`;
 
-    const response = await client.chat.completions.create({
-      model: CHAT_MODEL,
-      messages: [{ role: "user", content: metaPrompt }],
-      temperature: 0.9,
-      max_tokens: 500,
+    return withRateLimitCheck(async () => {
+      const response = await client.chat.completions.create({
+        model: chatModel,
+        messages: [{ role: "user", content: metaPrompt }],
+        temperature: 0.9,
+        max_tokens: 500,
+      });
+      return response.choices[0].message.content ?? "";
     });
-
-    return response.choices[0].message.content ?? "";
   }
 
   async function generateEvalQA(
@@ -117,11 +175,13 @@ ${samples.map((c, i) => `--- Chunk ${i + 1} ---\n${c}`).join("\n\n")}
 
 Return a JSON object with a "pairs" field that is an array of objects with "question" and "answer" fields.`;
 
-    const response = await client.chat.completions.create({
-      model: EVAL_MODEL,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-      max_tokens: 2000,
+    const response = await withRateLimitCheck(async () => {
+      return client.chat.completions.create({
+        model: evalModel,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
+        max_tokens: 2000,
+      });
     });
 
     const content = response.choices[0].message.content ?? '{"pairs":[]}';
@@ -157,11 +217,13 @@ Rate from 0.0 to 1.0:
 
 Return JSON: { "faithfulness": number, "relevance": number }`;
 
-    const response = await client.chat.completions.create({
-      model: EVAL_MODEL,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
-      max_tokens: 200,
+    const response = await withRateLimitCheck(async () => {
+      return client.chat.completions.create({
+        model: evalModel,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
+        max_tokens: 200,
+      });
     });
 
     const content = response.choices[0].message.content ?? '{"faithfulness":0,"relevance":0}';
@@ -176,11 +238,13 @@ Return JSON: { "faithfulness": number, "relevance": number }`;
     messages: Array<{ role: "user" | "assistant" | "system"; content: string }>,
     onChunk: (chunk: string) => void,
   ): Promise<string> {
-    const stream = await client.chat.completions.create({
-      model: CHAT_MODEL,
-      messages,
-      temperature: 0.7,
-      stream: true,
+    const stream = await withRateLimitCheck(async () => {
+      return client.chat.completions.create({
+        model: chatModel,
+        messages,
+        temperature: 0.7,
+        stream: true,
+      });
     });
 
     let fullContent = "";

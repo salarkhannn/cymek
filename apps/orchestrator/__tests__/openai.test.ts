@@ -36,7 +36,7 @@ describe("OpenAI service", () => {
     })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
-    const openAI = createOpenAIService("sk-test")
+    const openAI = createOpenAIService("sk-proj-test-key-long-enough")
     const result = await openAI.createEmbedding("test text")
 
     expect(result).toEqual([0.1, 0.2, 0.3])
@@ -73,7 +73,7 @@ describe("OpenAI service", () => {
     })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
-    const openAI = createOpenAIService("sk-test")
+    const openAI = createOpenAIService("sk-proj-test-key-long-enough")
     const results = await openAI.createEmbeddingsBatch(inputs)
 
     expect(results).toHaveLength(250)
@@ -94,7 +94,7 @@ describe("OpenAI service", () => {
     })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
-    const openAI = createOpenAIService("sk-test")
+    const openAI = createOpenAIService("sk-proj-test-key-long-enough")
     const result = await openAI.generateSystemPrompt(
       ["chunk1 content", "chunk2 content"],
       "Customer Support",
@@ -118,7 +118,7 @@ describe("OpenAI service", () => {
     })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
-    const openAI = createOpenAIService("sk-test")
+    const openAI = createOpenAIService("sk-proj-test-key-long-enough")
     const result = await openAI.regenerateSystemPrompt(
       ["chunk1"],
       "Customer Support",
@@ -142,7 +142,7 @@ describe("OpenAI service", () => {
     })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
-    const openAI = createOpenAIService("sk-test")
+    const openAI = createOpenAIService("sk-proj-test-key-long-enough")
     const result = await openAI.evaluateQA("What is X?", "X is Y", ["context chunk"], "system prompt")
 
     expect(result).toEqual({ faithfulness: 0.8, relevance: 0.9 })
@@ -162,7 +162,7 @@ describe("OpenAI service", () => {
     })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
-    const openAI = createOpenAIService("sk-test")
+    const openAI = createOpenAIService("sk-proj-test-key-long-enough")
     const result = await openAI.generateEvalQA(["chunk content"])
 
     expect(result).toEqual([{ question: "Q1", answer: "A1" }])
@@ -182,7 +182,7 @@ describe("OpenAI service", () => {
     })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
-    const openAI = createOpenAIService("sk-test")
+    const openAI = createOpenAIService("sk-proj-test-key-long-enough")
     const result = await openAI.generateEvalQA(["chunk"])
 
     expect(result).toEqual([])
@@ -207,7 +207,7 @@ describe("OpenAI service", () => {
     })
 
     const { createOpenAIService } = await import("../src/services/openai.js")
-    const openAI = createOpenAIService("sk-test")
+    const openAI = createOpenAIService("sk-proj-test-key-long-enough")
     const onChunk = vi.fn()
     const result = await openAI.chatStream(
       [{ role: "user", content: "hi" }],

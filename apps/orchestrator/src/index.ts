@@ -76,7 +76,7 @@ async function main() {
 
   app.use(authRoutes(authService, config, logger, db));
 
-  app.use(extractPromptRoutes(config.OPENROUTER_API_KEY));
+  app.use(extractPromptRoutes(config.GROQ_API_KEY));
 
   app.use(uploadRoutes(logger));
   app.use(pipelineRoutes(db, pipeline, encryption, logger));

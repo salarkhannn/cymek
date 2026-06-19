@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 
-export function extractPromptRoutes(openRouterKey?: string): IRouter {
+export function extractPromptRoutes(groqApiKey?: string): IRouter {
   const router = Router();
 
   router.post("/extract-prompt", async (req, res) => {
@@ -8,6 +8,14 @@ export function extractPromptRoutes(openRouterKey?: string): IRouter {
       const { prompt } = req.body;
       if (!prompt || typeof prompt !== "string") {
         return res.status(400).json({ error: "Prompt is required" });
+      }
+
+      if (!groqApiKey) {
+        return res.json({
+          useCase: null,
+          targetUser: null,
+          missingInfo: ["useCase", "targetUser", "documents"],
+        });
       }
 
       const systemMessage = `You are an AI pipeline analyzer. Given a user's plain-English description of what they want to build, extract structured information.
@@ -28,34 +36,36 @@ User: "Build a system that helps my support team answer tickets faster"
 User: "I need an AI"
 {"useCase": null, "targetUser": null, "missingInfo": ["useCase", "targetUser", "documents"]}`;
 
-      let content: string | null = null;
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${groqApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: systemMessage },
+            { role: "user", content: prompt },
+          ],
+          temperature: 0.1,
+          max_tokens: 300,
+          response_format: { type: "json_object" },
+        }),
+      });
 
-      if (openRouterKey && openRouterKey !== "sk-or-v1-placeholder-replace-with-your-key") {
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${openRouterKey}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [
-              { role: "system", content: systemMessage },
-              { role: "user", content: prompt },
-            ],
-            temperature: 0.1,
-            max_tokens: 300,
-          }),
+      if (!response.ok) {
+        const text = await response.text();
+        console.error("Groq extraction API error:", response.status, text);
+        return res.json({
+          useCase: null,
+          targetUser: null,
+          missingInfo: ["useCase", "targetUser", "documents"],
         });
-
-        if (!response.ok) {
-          const text = await response.text();
-          console.error("Extraction API error:", response.status, text);
-        } else {
-          const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-          content = data.choices?.[0]?.message?.content ?? null;
-        }
       }
+
+      const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+      const content = data.choices?.[0]?.message?.content ?? null;
 
       if (content) {
         const cleaned = content.replace(/```(?:json)?\s*/g, "").trim();
