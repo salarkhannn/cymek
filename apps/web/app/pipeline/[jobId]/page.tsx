@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { PipelineProgress } from "../../../components/ui/PipelineProgress";
 import { ScoreBar } from "../../../components/ui/ScoreBar";
-import { streamPipelineEvents, type SseEvent } from "../../../lib/api";
+import { streamPipelineEvents, retryPipeline, getPipeline, type SseEvent } from "../../../lib/api";
 
 interface PipelinePageProps {
-  params: { jobId: string };
+  params: Promise<{ jobId: string }>;
 }
 
 const STAGE_LABELS: Record<string, string> = {
@@ -23,14 +23,34 @@ const STAGE_LABELS: Record<string, string> = {
 
 function PipelineProgressPage({ params }: PipelinePageProps) {
   const router = useRouter();
-  const jobId = params.jobId;
+  const { jobId } = use(params);
 
   const [events, setEvents] = useState<SseEvent[]>([]);
   const [currentStage, setCurrentStage] = useState<string>("ingesting");
   const [error, setError] = useState<string | null>(null);
+  const [retryable, setRetryable] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [warning, setWarning] = useState(false);
   const [evalScore, setEvalScore] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    getPipeline(jobId)
+      .then((job) => {
+        const j = job as { status?: string; stage?: string; error?: string };
+        if (j.status === "failed") {
+          setError(j.error ?? "Pipeline failed");
+          setCurrentStage(j.stage ?? "ingesting");
+          return;
+        }
+        if (j.status === "completed") {
+          setCompleted(true);
+          setCurrentStage("deployed");
+          return;
+        }
+      })
+      .catch(() => {});
+  }, [jobId]);
 
   useEffect(() => {
     const controller = streamPipelineEvents(
@@ -47,6 +67,7 @@ function PipelineProgressPage({ params }: PipelinePageProps) {
         }
         if (event.error) {
           setError(event.error);
+          if (event.retryable) setRetryable(true);
         }
         if (event.stage === "deployed") {
           setCompleted(true);
@@ -59,6 +80,17 @@ function PipelineProgressPage({ params }: PipelinePageProps) {
 
     return () => controller.abort();
   }, [jobId]);
+
+  async function handleRetry() {
+    setRetrying(true);
+    try {
+      const { jobId: newJobId } = await retryPipeline(jobId);
+      router.push(`/pipeline/${newJobId}`);
+    } catch {
+      setError("Failed to retry. Please try again.");
+      setRetrying(false);
+    }
+  }
 
   const stages = ["ingesting", "chunking", "embedding", "prompt_gen", "evaluating", "deployed"];
 
@@ -91,7 +123,16 @@ function PipelineProgressPage({ params }: PipelinePageProps) {
 
       {error && (
         <Card variant="base" className="border-error mb-6">
-          <p className="text-body-sm text-error">{error}</p>
+          <p className="text-body-sm text-error mb-4">{error}</p>
+          {retryable && (
+            <button
+              onClick={handleRetry}
+              disabled={retrying}
+              className="rounded-md bg-primary px-4 py-2 text-body-sm-medium text-on-primary hover:bg-primary-deep disabled:opacity-50"
+            >
+              {retrying ? "Retrying..." : "Retry Pipeline"}
+            </button>
+          )}
         </Card>
       )}
 

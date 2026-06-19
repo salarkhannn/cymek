@@ -116,8 +116,15 @@ export function createPipelineService(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error({ err, jobId }, "Pipeline failed");
+      const isRateLimited = message.toLowerCase().includes("rate-limited") || message.toLowerCase().includes("rate limit") || message.includes("429");
       await updateJob(jobId, { status: "failed", error: message });
-      emitEvent(jobId, { stage: "evaluating", error: message });
+      const [job] = await db
+        .select({ stage: schema.jobs.stage })
+        .from(schema.jobs)
+        .where(eq(schema.jobs.id, jobId))
+        .limit(1);
+      const failedStage = (job?.stage ?? "evaluating") as SseEvent["stage"];
+      emitEvent(jobId, { stage: failedStage, error: message, retryable: isRateLimited });
     }
   }
 

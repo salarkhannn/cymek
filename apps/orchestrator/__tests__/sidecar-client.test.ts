@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 
+vi.mock("fs", () => ({
+  readFileSync: () => Buffer.from("dummy file content"),
+}))
+
 const mockFetch = vi.fn()
 vi.stubGlobal("fetch", mockFetch)
 
@@ -25,8 +29,7 @@ describe("sidecar client", () => {
     expect(result).toEqual({ filename: "doc.pdf", content: "extracted text" })
     expect(mockFetch).toHaveBeenCalledWith("http://localhost:8000/extract/file", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: "/tmp/doc.pdf" }),
+      body: expect.any(FormData),
     })
   })
 

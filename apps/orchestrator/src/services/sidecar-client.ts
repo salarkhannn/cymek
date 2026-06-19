@@ -1,3 +1,6 @@
+import { readFileSync } from "fs";
+import { basename } from "path";
+
 export interface ExtractResult {
   filename: string;
   content: string;
@@ -10,10 +13,15 @@ interface SidecarResponse {
 
 export function createSidecarClient(sidecarUrl: string) {
   async function extractFile(filePath: string): Promise<ExtractResult> {
+    const fileBuffer = readFileSync(filePath);
+    const fileName = basename(filePath);
+
+    const formData = new FormData();
+    formData.append("file", new Blob([fileBuffer]), fileName);
+
     const response = await fetch(`${sidecarUrl}/extract/file`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: filePath }),
+      body: formData,
     });
 
     if (!response.ok) {

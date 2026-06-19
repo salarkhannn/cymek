@@ -17,6 +17,7 @@ export interface SseEvent {
   score?: number;
   warning?: boolean;
   error?: string;
+  retryable?: boolean;
 }
 
 export interface Tenant {

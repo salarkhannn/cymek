@@ -5,7 +5,7 @@ import * as schema from "@cymek/db/schema";
 import type { PipelineService } from "../services/pipeline.js";
 import type { EncryptionService } from "../services/encryption.js";
 import type pino from "pino";
-import type { SseEvent } from "@cymek/shared";
+import type { PipelineConfig, SseEvent } from "@cymek/shared";
 
 type Db = PostgresJsDatabase<typeof schema>;
 
@@ -17,7 +17,7 @@ export function pipelineRoutes(
 ): Router {
   const router = Router();
 
-  router.get("/pipeline/stream/:jobId", (req, res) => {
+  router.get("/pipeline/stream/:jobId", async (req, res) => {
     const { jobId } = req.params;
 
     res.writeHead(200, {
@@ -35,6 +35,23 @@ export function pipelineRoutes(
         res.end();
       },
     };
+
+    const [job] = await db
+      .select({ status: schema.jobs.status, stage: schema.jobs.stage, error: schema.jobs.error })
+      .from(schema.jobs)
+      .where(eq(schema.jobs.id, jobId))
+      .limit(1);
+
+    if (job) {
+      if (job.status === "failed") {
+        emitter.send({ stage: (job.stage as SseEvent["stage"]) ?? "ingesting", error: job.error ?? "Unknown error", retryable: false });
+        return;
+      }
+      if (job.status === "completed") {
+        emitter.send({ stage: "deployed" });
+        return;
+      }
+    }
 
     pipeline.registerEmitter(jobId, emitter);
 
@@ -118,6 +135,26 @@ export function pipelineRoutes(
       });
 
       res.status(201).json({ tenantId, jobId });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post("/pipeline/:jobId/retry", async (req, res, next) => {
+    try {
+      const [job] = await db
+        .select({ config: schema.jobs.config, tenantId: schema.jobs.tenantId })
+        .from(schema.jobs)
+        .where(eq(schema.jobs.id, req.params.jobId))
+        .limit(1);
+
+      if (!job) {
+        res.status(404).json({ error: "Job not found" });
+        return;
+      }
+
+      const jobId = await pipeline.createJob(job.tenantId, job.config as PipelineConfig);
+      res.status(201).json({ jobId });
     } catch (err) {
       next(err);
     }
