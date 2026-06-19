@@ -13,3 +13,9 @@ venv/
 *.db
 coverage/
 .turbo/
+
+# transient pipeline artifacts
+uploads/
+
+# example docs (not for commit)
+example_docs/

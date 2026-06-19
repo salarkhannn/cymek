@@ -14,6 +14,23 @@ type Step = "api-key" | "use-case" | "target-user" | "documents";
 
 const STEP_ORDER: Step[] = ["api-key", "use-case", "target-user", "documents"];
 
+function validateKeyFormat(provider: string, key: string): string | null {
+  const trimmed = key.trim();
+  switch (provider) {
+    case "openai":
+      if (!trimmed.startsWith("sk-")) return "OpenAI keys start with 'sk-'";
+      break;
+    case "gemini":
+      if (!trimmed.startsWith("AIzaSy") && !trimmed.startsWith("AQ."))
+        return "Gemini keys start with 'AIzaSy' or 'AQ.'";
+      break;
+    case "openrouter":
+      if (!trimmed.startsWith("sk-or-")) return "OpenRouter keys start with 'sk-or-'";
+      break;
+  }
+  return null;
+}
+
 const STEP_LABELS: Record<Step, string> = {
   "api-key": "API Key",
   "use-case": "Use Case",
@@ -22,10 +39,10 @@ const STEP_LABELS: Record<Step, string> = {
 };
 
 interface FormData {
+  provider: "openai" | "claude" | "gemini" | "openrouter";
   apiKey: string;
   useCase: string;
   targetUser: string;
-  urls: string[];
 }
 
 let fileIdCounter = 0;
@@ -37,83 +54,65 @@ function nextFileId(): string {
 function OnboardPage() {
   const router = useRouter();
 
-  const [initialStep, setInitialStep] = useState<Step | null>(null);
+  const [step, setStep] = useState<Step>("api-key");
+  const [form, setForm] = useState<FormData>({
+    provider: "openai",
+    apiKey: "",
+    useCase: "",
+    targetUser: "",
+  });
+  const [uploadFilesList, setUploadFilesList] = useState<UploadFileItem[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const extractedRaw = localStorage.getItem("cymek_extracted");
-    const urlsRaw = localStorage.getItem("cymek_urls");
+    const filesRaw = localStorage.getItem("cymek_files");
 
     if (extractedRaw) {
       try {
-        const extracted = JSON.parse(extractedRaw) as { useCase?: string | null; targetUser?: string | null; missingInfo?: string[] };
+        const extracted = JSON.parse(extractedRaw) as {
+          useCase?: string | null;
+          targetUser?: string | null;
+        };
         const prefill: Partial<FormData> = {};
 
         if (extracted.useCase) prefill.useCase = extracted.useCase;
         if (extracted.targetUser) prefill.targetUser = extracted.targetUser;
-        if (urlsRaw) {
-          const parsedUrls = JSON.parse(urlsRaw) as string[];
-          if (parsedUrls.length > 0) {
-            prefill.urls = [...parsedUrls, ""];
-          }
-        }
 
         if (Object.keys(prefill).length > 0) {
           setForm((prev) => ({ ...prev, ...prefill }));
-        }
-
-        const missing = extracted.missingInfo ?? [];
-        if (missing.length > 0) {
-          if (!missing.includes("apiKey")) missing.push("apiKey");
-          const firstMissing = missing[0] as Step | undefined;
-          if (firstMissing && STEP_ORDER.includes(firstMissing)) {
-            setInitialStep(firstMissing);
-          }
         }
       } catch {
         // ignore parse errors
       }
     }
 
-    localStorage.removeItem("cymek_extracted");
-    localStorage.removeItem("cymek_urls");
-  }, []);
-
-  const [step, setStep] = useState<Step>("api-key");
-  const [form, setForm] = useState<FormData>({
-    apiKey: "",
-    useCase: "",
-    targetUser: "",
-    urls: [""],
-  });
-
-  useEffect(() => {
-    if (initialStep) {
-      setStep(initialStep);
+    if (filesRaw) {
+      try {
+        const savedFiles = JSON.parse(filesRaw) as { filename: string; size: number; path: string }[];
+        const items = savedFiles.map((sf) => ({
+          id: nextFileId(),
+          filename: sf.filename,
+          size: sf.size,
+          path: sf.path,
+          status: "done" as const,
+        }));
+        setUploadFilesList(items);
+      } catch {
+        // ignore
+      }
     }
-  }, [initialStep]);
-  const [uploadFilesList, setUploadFilesList] = useState<UploadFileItem[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+    localStorage.removeItem("cymek_extracted");
+    localStorage.removeItem("cymek_files");
+  }, []);
 
   const stepIndex = STEP_ORDER.indexOf(step);
   const isLastStep = step === "documents";
 
   function updateField<K extends keyof FormData>(field: K, value: FormData[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
-  }
-
-  function updateUrl(index: number, value: string) {
-    const urls = [...form.urls];
-    urls[index] = value;
-    if (value && index === urls.length - 1) {
-      urls.push("");
-    }
-    updateField("urls", urls.filter((u, i) => i === urls.length - 1 || u));
-  }
-
-  function removeUrl(index: number) {
-    if (form.urls.length <= 1) return;
-    updateField("urls", form.urls.filter((_, i) => i !== index));
   }
 
   function handleAddFiles(files: File[]) {
@@ -129,16 +128,21 @@ function OnboardPage() {
     setUploadFilesList((prev) => prev.filter((f) => f.id !== id));
   }
 
+  function keyFormatError(): string | null {
+    if (step !== "api-key" || form.apiKey.trim().length === 0) return null;
+    return validateKeyFormat(form.provider, form.apiKey);
+  }
+
   function canProceed(): boolean {
     switch (step) {
       case "api-key":
-        return form.apiKey.trim().length > 0;
+        return form.apiKey.trim().length > 0 && !keyFormatError();
       case "use-case":
         return form.useCase.trim().length > 0;
       case "target-user":
         return form.targetUser.trim().length > 0;
       case "documents":
-        return form.urls.some((u) => u.trim().length > 0) || uploadFilesList.length > 0;
+        return uploadFilesList.length > 0;
     }
   }
 
@@ -153,33 +157,31 @@ function OnboardPage() {
     setError(null);
 
     try {
-      const validUrls = form.urls.filter((u) => u.trim().length > 0);
-      const pendingFiles = uploadFilesList.filter((f) => f.status === "pending");
+      const pendingFiles = uploadFilesList.filter((f) => f.status === "pending" && f.file);
+      const alreadyDone = uploadFilesList
+        .filter((f) => f.status === "done" && f.path)
+        .map((f) => f.path) as string[];
 
       let filePaths: string[] = [];
 
       if (pendingFiles.length > 0) {
         setUploadFilesList((prev) =>
-          prev.map((f) =>
-            f.status === "pending" ? { ...f, status: "uploading" as const } : f,
-          ),
+          prev.map((f) => (f.status === "pending" ? { ...f, status: "uploading" as const } : f)),
         );
 
-        filePaths = await uploadFiles(pendingFiles.map((f) => f.file));
+        filePaths = await uploadFiles(pendingFiles.map((f) => f.file as File));
 
         setUploadFilesList((prev) =>
-          prev.map((f) =>
-            f.status === "uploading" ? { ...f, status: "done" as const } : f,
-          ),
+          prev.map((f) => (f.status === "uploading" ? { ...f, status: "done" as const } : f)),
         );
       }
 
-      const { tenantId, jobId } = await createPipeline(
-        form.apiKey,
-        form.useCase,
-        form.targetUser,
-        { urls: validUrls, files: filePaths },
-      );
+      const allFiles = [...alreadyDone, ...filePaths];
+
+      const { tenantId, jobId } = await createPipeline(form.apiKey, form.useCase, form.targetUser, {
+        urls: [],
+        files: allFiles,
+      });
       localStorage.setItem("cymek_tenant", tenantId);
       router.push(`/pipeline/${jobId}`);
     } catch (err) {
@@ -207,13 +209,20 @@ function OnboardPage() {
     return "Start Pipeline";
   })();
 
+  const providerLabels: Record<FormData["provider"], string> = {
+    openai: "OpenAI",
+    claude: "Claude",
+    gemini: "Gemini",
+    openrouter: "OpenRouter",
+  };
+
   return (
     <div className="mx-auto max-w-2xl px-6 py-section">
       <div className="mb-8 text-center">
-        <Badge variant="cream" className="mb-3">Getting Started</Badge>
-        <h1 className="text-h1-display font-display text-ink mb-2">
-          Set up your pipeline
-        </h1>
+        <Badge variant="cream" className="mb-3">
+          Getting Started
+        </Badge>
+        <h1 className="text-h1-display font-display text-ink mb-2">Set up your pipeline</h1>
         <p className="text-body-md text-steel">
           Step {stepIndex + 1} of {STEP_ORDER.length}: {STEP_LABELS[step]}
         </p>
@@ -243,20 +252,40 @@ function OnboardPage() {
       </div>
 
       <Card variant="cream">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6" autoComplete="off">
           {step === "api-key" && (
-            <div className="flex flex-col gap-2">
-              <h2 className="text-h4 text-ink">Enter your OpenAI API Key</h2>
-              <p className="text-body-sm text-steel mb-2">
-                Your key is encrypted and stored securely on our server.
+            <div className="flex flex-col gap-4">
+              <h2 className="text-h4 text-ink">Enter your API Key</h2>
+              <p className="text-body-sm text-steel">
+                Select your LLM provider and enter your API key. Your key is encrypted and stored securely on our server.
               </p>
+              
+              <div className="flex flex-col gap-1.5">
+                <label className="text-body-sm font-medium text-ink">LLM Provider</label>
+                <select
+                  value={form.provider}
+                  onChange={(e) => updateField("provider", e.target.value as FormData["provider"])}
+                  className="h-11 w-full rounded-md border border-hairline-strong bg-canvas px-4 text-body-md text-ink transition-all duration-150 ease-out focus:border-primary focus:outline-none"
+                >
+                  <option value="openai">OpenAI</option>
+                  <option value="claude">Claude</option>
+                  <option value="gemini">Gemini</option>
+                  <option value="openrouter">OpenRouter</option>
+                </select>
+              </div>
+
               <TextInput
-                label="OpenAI API Key"
+                label={`${providerLabels[form.provider]} API Key`}
                 type="password"
-                placeholder="sk-..."
+                placeholder="Enter API key..."
                 value={form.apiKey}
                 onChange={(e) => updateField("apiKey", e.target.value)}
+                autoComplete="new-password"
+                name="api-key"
               />
+              {keyFormatError() && (
+                <p className="text-body-sm text-error">{keyFormatError()}</p>
+              )}
             </div>
           )}
 
@@ -296,7 +325,7 @@ function OnboardPage() {
               <div>
                 <h2 className="text-h4 text-ink mb-2">Upload your documents</h2>
                 <p className="text-body-sm text-steel mb-4">
-                  Upload files or add URLs to your documentation or data sources.
+                  Upload files to your documentation or data sources.
                 </p>
                 <FileUpload
                   files={uploadFilesList}
@@ -304,32 +333,6 @@ function OnboardPage() {
                   onRemove={handleRemoveFile}
                   disabled={submitting}
                 />
-              </div>
-
-              <div className="border-t border-beige-deep pt-4">
-                <p className="text-body-sm-medium text-ink mb-3">Or add document URLs</p>
-                <div className="flex flex-col gap-3">
-                  {form.urls.map((url, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <div className="flex-1">
-                        <TextInput
-                          placeholder="https://docs.example.com/page"
-                          value={url}
-                          onChange={(e) => updateUrl(index, e.target.value)}
-                        />
-                      </div>
-                      {form.urls.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeUrl(index)}
-                          className="text-body-sm text-error hover:text-error/80 mt-6"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           )}
@@ -349,11 +352,7 @@ function OnboardPage() {
             >
               Back
             </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={!canProceed() || submitting}
-            >
+            <Button type="submit" variant="primary" disabled={!canProceed() || submitting}>
               {submitLabel}
             </Button>
           </div>
